@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
+import { join } from "path";
+import { putObject, getObject, deleteObject } from "../lib/r2";
 
 const router = Router();
 
@@ -8,7 +9,6 @@ const COOKIE_NAME = "gogi_admin_session";
 const COOKIE_VALUE = "authenticated";
 
 const SETTINGS_PATH = join(process.cwd(), "data", "settings.json");
-const LOGO_META_PATH = join(process.cwd(), "data", "logo-meta.json");
 
 function dataDir() {
   const dir = join(process.cwd(), "data");
@@ -64,6 +64,17 @@ function isAdmin(req: any): boolean {
   return req.signedCookies?.[COOKIE_NAME] === COOKIE_VALUE;
 }
 
+const LOGO_R2_PREFIX = "logo/";
+
+const ALLOWED_MIME: Record<string, string> = {
+  "image/png":     "png",
+  "image/jpeg":    "jpg",
+  "image/jpg":     "jpg",
+  "image/gif":     "gif",
+  "image/webp":    "webp",
+  "image/svg+xml": "svg",
+};
+
 /** GET /api/settings — public */
 router.get("/settings", (_req, res) => {
   res.json(readSettings());
@@ -93,7 +104,6 @@ router.put("/settings", (req, res) => {
   }
 
   const current = readSettings();
-  // Merge: only overwrite fields that are explicitly provided
   const updated: SiteSettings = { ...current };
   if (body.socialLinks !== undefined) updated.socialLinks = body.socialLinks;
   if (typeof body.companyName === "string") updated.companyName = body.companyName;
@@ -107,7 +117,7 @@ router.put("/settings", (req, res) => {
 });
 
 /** POST /api/logo — admin only; body: { data: base64String, mimeType: string } */
-router.post("/logo", (req, res) => {
+router.post("/logo", async (req, res) => {
   if (!isAdmin(req)) {
     res.status(401).json({ ok: false, error: "Unauthorized." });
     return;
@@ -119,27 +129,22 @@ router.post("/logo", (req, res) => {
     return;
   }
 
-  const allowedTypes: Record<string, string> = {
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/jpg": "jpg",
-    "image/gif": "gif",
-    "image/webp": "webp",
-    "image/svg+xml": "svg",
-  };
-  const ext = allowedTypes[mimeType];
+  const ext = ALLOWED_MIME[mimeType];
   if (!ext) {
     res.status(400).json({ ok: false, error: "Unsupported image type." });
     return;
   }
 
   try {
-    const dir = dataDir();
-    const logoPath = join(dir, `logo.${ext}`);
+    // Delete any existing logo objects in R2
+    for (const oldExt of Object.values(ALLOWED_MIME)) {
+      await deleteObject(`${LOGO_R2_PREFIX}logo.${oldExt}`);
+    }
+
     const buffer = Buffer.from(data, "base64");
-    writeFileSync(logoPath, buffer);
-    // Save metadata so GET /api/logo knows which file to serve
-    writeFileSync(LOGO_META_PATH, JSON.stringify({ file: `logo.${ext}`, mimeType }), "utf-8");
+    const key = `${LOGO_R2_PREFIX}logo.${ext}`;
+    await putObject(key, buffer, mimeType);
+
     res.json({ ok: true, url: "/api/logo" });
   } catch (err) {
     res.status(500).json({ ok: false, error: "Failed to save logo." });
@@ -147,21 +152,19 @@ router.post("/logo", (req, res) => {
 });
 
 /** GET /api/logo — public; 404 if no custom logo uploaded */
-router.get("/logo", (_req, res) => {
+router.get("/logo", async (_req, res) => {
   try {
-    if (!existsSync(LOGO_META_PATH)) {
-      res.status(404).json({ error: "No custom logo." });
-      return;
+    const exts = Object.values(ALLOWED_MIME);
+    for (const ext of exts) {
+      const obj = await getObject(`${LOGO_R2_PREFIX}logo.${ext}`);
+      if (obj) {
+        res.setHeader("Content-Type", obj.contentType);
+        res.setHeader("Cache-Control", "public, max-age=60");
+        res.send(obj.body);
+        return;
+      }
     }
-    const meta = JSON.parse(readFileSync(LOGO_META_PATH, "utf-8")) as { file: string; mimeType: string };
-    const logoPath = join(process.cwd(), "data", meta.file);
-    if (!existsSync(logoPath)) {
-      res.status(404).json({ error: "Logo file missing." });
-      return;
-    }
-    res.setHeader("Content-Type", meta.mimeType);
-    res.setHeader("Cache-Control", "public, max-age=60");
-    res.send(readFileSync(logoPath));
+    res.status(404).json({ error: "No custom logo." });
   } catch {
     res.status(500).json({ error: "Failed to serve logo." });
   }

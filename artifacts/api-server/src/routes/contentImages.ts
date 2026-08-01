@@ -1,15 +1,10 @@
 import { Router } from "express";
-import {
-  readFileSync, writeFileSync, existsSync, mkdirSync,
-  readdirSync, unlinkSync,
-} from "fs";
-import { join } from "path";
+import { putObject, getObject, deleteObject, listKeys } from "../lib/r2";
 
 const router = Router();
 
 const COOKIE_NAME = "gogi_admin_session";
 const COOKIE_VALUE = "authenticated";
-const IMAGES_DIR = join(process.cwd(), "data", "images");
 
 const STATIC_TYPES = ["books", "merchandise", "projects", "testimonials"] as const;
 
@@ -40,55 +35,66 @@ function isAdmin(req: any): boolean {
   return req.signedCookies?.[COOKIE_NAME] === COOKIE_VALUE;
 }
 
-function typeDir(type: string): string {
-  const dir = join(IMAGES_DIR, type);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return dir;
+function r2Key(type: string, id: string, ext: string): string {
+  return `content-images/${type}/${id}.${ext}`;
 }
 
-function findFile(type: string, id: string): string | null {
-  const dir = join(IMAGES_DIR, type);
-  if (!existsSync(dir)) return null;
-  const files = readdirSync(dir).filter((f) => f.startsWith(`${id}.`));
-  return files.length > 0 ? join(dir, files[0]) : null;
+function r2Prefix(type: string): string {
+  return `content-images/${type}/`;
 }
 
 /** GET /api/content-images — public; returns { "books/1": "/api/content-images/books/1", ... } */
-router.get("/content-images", (_req, res) => {
-  const map: Record<string, string> = {};
-  if (!existsSync(IMAGES_DIR)) { res.json(map); return; }
-  for (const entry of readdirSync(IMAGES_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !isAllowedType(entry.name)) continue;
-    const type = entry.name;
-    const dir = join(IMAGES_DIR, type);
-    for (const file of readdirSync(dir)) {
-      const id = file.replace(/\.[^.]+$/, "");
-      map[`${type}/${id}`] = `/api/content-images/${type}/${id}`;
+router.get("/content-images", async (_req, res) => {
+  try {
+    const map: Record<string, string> = {};
+    const allTypes = [...STATIC_TYPES];
+    // Also list work-* prefixes by scanning the r2 prefix
+    const workKeys = await listKeys("content-images/work-");
+    const workTypes = new Set<string>();
+    for (const key of workKeys) {
+      const parts = key.split("/");
+      if (parts.length >= 2) workTypes.add(parts[1]);
     }
+
+    for (const type of [...allTypes, ...workTypes]) {
+      const keys = await listKeys(r2Prefix(type));
+      for (const key of keys) {
+        const filename = key.split("/").pop() ?? "";
+        const id = filename.replace(/\.[^.]+$/, "");
+        if (id) map[`${type}/${id}`] = `/api/content-images/${type}/${id}`;
+      }
+    }
+    res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to list images." });
   }
-  res.json(map);
 });
 
 /** GET /api/content-images/:type/:id — serve a specific image */
-router.get("/content-images/:type/:id", (req, res) => {
+router.get("/content-images/:type/:id", async (req, res) => {
   const { type, id } = req.params;
   if (!isAllowedType(type)) {
     res.status(400).json({ error: "Invalid type." });
     return;
   }
-  const filePath = findFile(type, id);
-  if (!filePath) {
-    res.status(404).json({ error: "Not found." });
-    return;
+
+  // Try each supported extension
+  const exts = ["jpg", "png", "gif", "webp"];
+  for (const ext of exts) {
+    const obj = await getObject(r2Key(type, id, ext));
+    if (obj) {
+      res.setHeader("Content-Type", obj.contentType);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(obj.body);
+      return;
+    }
   }
-  const ext = filePath.split(".").pop() ?? "jpg";
-  res.setHeader("Content-Type", EXT_TO_MIME[ext] ?? "image/jpeg");
-  res.setHeader("Cache-Control", "public, max-age=60");
-  res.send(readFileSync(filePath));
+
+  res.status(404).json({ error: "Not found." });
 });
 
 /** POST /api/content-images/:type/:id — admin only; { data: base64, mimeType } */
-router.post("/content-images/:type/:id", (req, res) => {
+router.post("/content-images/:type/:id", async (req, res) => {
   if (!isAdmin(req)) {
     res.status(401).json({ ok: false, error: "Unauthorized." });
     return;
@@ -108,16 +114,41 @@ router.post("/content-images/:type/:id", (req, res) => {
     res.status(400).json({ ok: false, error: "Unsupported image type." });
     return;
   }
+
   try {
-    const dir = typeDir(type);
-    // Remove any previous file for this id (could have different extension)
-    const existing = readdirSync(dir).filter((f) => f.startsWith(`${id}.`));
-    for (const f of existing) unlinkSync(join(dir, f));
-    // Write new file
-    writeFileSync(join(dir, `${id}.${ext}`), Buffer.from(data, "base64"));
+    // Remove any previous object for this id (could have different extension)
+    for (const oldExt of Object.values(MIME_TO_EXT)) {
+      await deleteObject(r2Key(type, id, oldExt));
+    }
+
+    const buffer = Buffer.from(data, "base64");
+    await putObject(r2Key(type, id, ext), buffer, mimeType);
+
     res.json({ ok: true, url: `/api/content-images/${type}/${id}` });
-  } catch {
+  } catch (err) {
     res.status(500).json({ ok: false, error: "Failed to save image." });
+  }
+});
+
+/** DELETE /api/content-images/:type/:id — admin only */
+router.delete("/content-images/:type/:id", async (req, res) => {
+  if (!isAdmin(req)) {
+    res.status(401).json({ ok: false, error: "Unauthorized." });
+    return;
+  }
+  const { type, id } = req.params;
+  if (!isAllowedType(type)) {
+    res.status(400).json({ ok: false, error: "Invalid type." });
+    return;
+  }
+
+  try {
+    for (const ext of Object.values(MIME_TO_EXT)) {
+      await deleteObject(r2Key(type, id, ext));
+    }
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to delete image." });
   }
 });
 
