@@ -1,0 +1,133 @@
+{
+  "books": [
+    {
+      "id": "1",
+      "name": "Gogi Goes to School",
+      "description": "A heartwarming tale of Gogi's first day navigating school life.",
+      "price": "PKR 450",
+      "priceUsd": "$16"
+    },
+    {
+      "id": "2",
+      "name": "Gogi and the Water Crisis",
+      "description": "Teaching children the importance of water conservation.",
+      "price": "PKR 500",
+      "priceUsd": "$18"
+    },
+    {
+      "id": "3",
+      "name": "Gogi's Big Adventure",
+      "description": "An epic journey exploring the cultural heritage of Pakistan.",
+      "price": "PKR 550",
+      "priceUsd": "$20"
+    },
+    {
+      "id": "4",
+      "name": "Gogi Saves the Day",
+      "description": "Gogi uses wit and humor to solve a community problem.",
+      "price": "PKR 450",
+      "priceUsd": "$16"
+    },
+    {
+      "id": "5",
+      "name": "Gogi and the Climate",
+      "description": "Understanding climate change through the eyes of Gogi.",
+      "price": "PKR 500",
+      "priceUsd": "$18"
+    },
+    {
+      "id": "6",
+      "name": "The Complete Gogi Collection",
+      "description": "All five iconic Gogi books in one beautiful boxed set — the perfect gift.",
+      "price": "PKR 2,000",
+      "priceUsd": "$72",
+      "featured": true
+    }
+  ],
+  "merchandise": [
+    {
+      "id": "1",
+      "name": "Gogi Classic Tote Bag",
+      "price": "$25",
+      "tag": "Best Seller",
+      "description": "Sturdy canvas tote with the iconic Gogi character print."
+    },
+    {
+      "id": "2",
+      "name": "Gogi Enamel Pin Set",
+      "price": "$15",
+      "tag": null,
+      "description": "Set of 4 collectible enamel pins featuring Gogi expressions."
+    },
+    {
+      "id": "3",
+      "name": "Gogi Studios Art Print",
+      "price": "$40",
+      "tag": "Popular",
+      "description": "Museum-quality 8x10 art print, ready to frame."
+    },
+    {
+      "id": "4",
+      "name": "Gogi Coffee Mug",
+      "price": "$20",
+      "tag": null,
+      "description": "Start your morning with Gogi. Ceramic, dishwasher-safe."
+    },
+    {
+      "id": "5",
+      "name": "Gogi Notebook",
+      "price": "$18",
+      "tag": null,
+      "description": "Ruled notebook with illustrated Gogi cover art, 160 pages."
+    },
+    {
+      "id": "6",
+      "name": "Gogi Sticker Pack",
+      "price": "$10",
+      "tag": "New",
+      "description": "12 high-quality vinyl stickers — waterproof and vibrant."
+    },
+    {
+      "id": "7",
+      "name": "Gogi Tee — Classic Black",
+      "price": "$35",
+      "tag": "New",
+      "description": "100% cotton unisex tee with embroidered Gogi Studios logo."
+    },
+    {
+      "id": "8",
+      "name": "Gogi Gift Bundle",
+      "price": "$75",
+      "tag": "Gift Idea",
+      "description": "Tote, mug, sticker pack and art print — everything Gogi in one box."
+    }
+  ],
+  "projects": [
+    {
+      "id": "1",
+      "name": "\"Gogi\" Comic Strip Series",
+      "description": "Pakistan's longest-running female-led comic strip"
+    },
+    {
+      "id": "2",
+      "name": "Bus No.1 Campaign",
+      "description": "Climate change awareness through art on public transport"
+    },
+    {
+      "id": "3",
+      "name": "NUST Mural Project",
+      "description": "Large-scale campus artwork inspiring students"
+    },
+    {
+      "id": "4",
+      "name": "Beaconhouse School Program",
+      "description": "Art education outreach for the next generation"
+    },
+    {
+      "id": "5",
+      "name": "UN SDG Awareness Campaign",
+      "description": "Sustainable development through illustration and storytelling"
+    }
+  ],
+  "_nextId": 1
+}

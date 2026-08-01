@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Gogi Studios"
+description = "Gogi Studios — a creative studio website with portfolio, services, blog, merchandise, books, awards, and hire pages. Features an admin panel for content editing."
+version = "1.0.0"
+id = "artifacts/gogi-studios"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19493
+
+[services.development]
+run = "pnpm --filter @workspace/gogi-studios run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gogi-studios", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/gogi-studios/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19493"
+BASE_PATH = "/"

@@ -1,0 +1,30 @@
+{
+  "sections": [
+    {
+      "slug": "social-awareness",
+      "label": "Social Awareness Campaigns",
+      "subCategories": [
+        {
+          "slug": "sdgs-kashmir",
+          "label": "SDGs Kashmir",
+          "parentSlug": null
+        }
+      ]
+    },
+    {
+      "slug": "animation-videos",
+      "label": "Animation & Explainer Videos",
+      "subCategories": []
+    },
+    {
+      "slug": "bcc-content",
+      "label": "BCC Content",
+      "subCategories": []
+    },
+    {
+      "slug": "workshops-training",
+      "label": "Workshops & Training Manuals & Guides",
+      "subCategories": []
+    }
+  ]
+}
