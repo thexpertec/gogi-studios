@@ -1082,99 +1082,12 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                             )}
                           </div>
 
-                          {/* ── Expanded panel: sub-categories + images ── */}
+                          {/* ── Expanded panel: images first, sub-categories second (collapsible) ── */}
                           {isExpanded && (
                             <div className="border-t border-border/60 bg-muted/20 flex flex-col">
 
-                              {/* ── Sub-categories ── */}
-                              <div className="px-3 pt-2.5 pb-2 flex flex-col gap-1">
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                                    Sub-categories — appear as flyout in nav
-                                  </p>
-                                  {addingSubParent === null && (
-                                    <button type="button"
-                                      onClick={() => { setAddingSubParent("root"); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
-                                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
-                                      <Plus className="w-3 h-3" /> Add
-                                    </button>
-                                  )}
-                                </div>
-
-                                {sectionTree.map(({ node, depth }) => (
-                                  <div key={node.slug} style={{ marginLeft: `${depth * 14}px` }}
-                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 bg-background text-xs">
-                                    {editingSubSlug === node.slug ? (
-                                      <>
-                                        <input value={editSubLabel} onChange={(e) => setEditSubLabel(e.target.value)} autoFocus
-                                          className="flex-1 h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSubCategory(node.slug); } if (e.key === "Escape") setEditingSubSlug(null); }} />
-                                        <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
-                                          className="h-6 px-2 text-xs rounded-full shrink-0">
-                                          {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
-                                        </Button>
-                                        <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
-                                          <XIcon className="w-3 h-3" />
-                                        </button>
-                                      </>
-                                    ) : confirmDeleteSubSlug === node.slug ? (
-                                      <>
-                                        <span className="flex-1 text-destructive truncate">Delete with all children?</span>
-                                        <button type="button" onClick={() => handleDeleteSubCategory(node.slug)} className="text-destructive font-medium hover:underline shrink-0">Yes</button>
-                                        <button type="button" onClick={() => setConfirmDeleteSubSlug(null)} className="text-muted-foreground hover:text-foreground shrink-0 ml-1">No</button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/30 shrink-0" />
-                                        <span className="flex-1 truncate">{node.label}</span>
-                                        <button type="button" title="Add child sub-category" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
-                                          className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
-                                          <Plus className="w-3 h-3" />
-                                        </button>
-                                        <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
-                                          className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
-                                          <Pencil className="w-3 h-3" />
-                                        </button>
-                                        <button type="button" title="Delete" onClick={() => {
-                                            const hasChildren = (s.subCategories ?? []).some((sc) => sc.parentSlug === node.slug);
-                                            if (hasChildren) setConfirmDeleteSubSlug(node.slug);
-                                            else handleDeleteSubCategory(node.slug);
-                                          }}
-                                          className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                ))}
-
-                                {sectionTree.length === 0 && addingSubParent === null && (
-                                  <p className="text-xs text-muted-foreground/60 text-center py-1">No sub-categories yet.</p>
-                                )}
-
-                                {addingSubParent !== null && (
-                                  <div style={{ marginLeft: `${addSubFormDepth * 14}px` }}
-                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-primary/40 bg-primary/5">
-                                    <input value={newSubLabel} onChange={(e) => setNewSubLabel(e.target.value)} autoFocus placeholder="Sub-category name"
-                                      className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSubCategory(); } if (e.key === "Escape") { setAddingSubParent(null); setNewSubLabel(""); } }} />
-                                    <Button type="button" size="sm" onClick={handleAddSubCategory} disabled={savingNewSub || !newSubLabel.trim()}
-                                      className="h-6 px-2 text-xs rounded-full shrink-0">
-                                      {savingNewSub ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Add"}
-                                    </Button>
-                                    <button type="button" onClick={() => { setAddingSubParent(null); setNewSubLabel(""); }}
-                                      className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
-                                      <XIcon className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Divider */}
-                              <div className="h-px bg-border/40 mx-3" />
-
-                              {/* ── Images ── */}
-                              <div className="px-3 pt-2 pb-2.5 flex flex-col gap-2">
+                              {/* ── Images (primary — always visible) ── */}
+                              <div className="px-3 pt-2.5 pb-2.5 flex flex-col gap-2">
                                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-0.5">
                                   Media (Images &amp; Videos)
                                 </p>
@@ -1291,13 +1204,116 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                 )}
                               </div>
 
+                              {/* ── Sub-categories (secondary — collapsible when empty) ── */}
+                              {(() => {
+                                const hasSubCats = sectionTree.length > 0 || addingSubParent !== null;
+                                const showSubCats = hasSubCats || expandedSubSection === s.slug;
+                                return (
+                                  <>
+                                    <div className="h-px bg-border/40 mx-3" />
+                                    <div className="px-3 pt-1.5 pb-2 flex flex-col gap-1">
+                                      {/* Header — always shown; acts as toggle when no sub-cats */}
+                                      <div className="flex items-center justify-between">
+                                        <button type="button"
+                                          onClick={() => {
+                                            if (!hasSubCats) {
+                                              // open the add form directly when clicking the header and there are no sub-cats
+                                              setAddingSubParent((p) => p === null ? "root" : null);
+                                              setEditingSubSlug(null); setConfirmDeleteSubSlug(null);
+                                            }
+                                          }}
+                                          className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                                          <ChevronRight className={`w-3 h-3 transition-transform ${showSubCats ? "rotate-90" : ""}`} />
+                                          Sub-categories
+                                          {sectionTree.length > 0 && (
+                                            <span className="normal-case font-normal">— {sectionTree.length} · appear as flyout in nav</span>
+                                          )}
+                                          {sectionTree.length === 0 && (
+                                            <span className="normal-case font-normal opacity-60">— optional, used for nav flyout</span>
+                                          )}
+                                        </button>
+                                        {addingSubParent === null && (
+                                          <button type="button"
+                                            onClick={() => { setAddingSubParent("root"); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                                            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
+                                            <Plus className="w-3 h-3" /> Add
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {/* Sub-category list + form — shown when there's something to show */}
+                                      {showSubCats && (
+                                        <div className="flex flex-col gap-1 mt-1">
+                                          {sectionTree.map(({ node, depth }) => (
+                                            <div key={node.slug} style={{ marginLeft: `${depth * 14}px` }}
+                                              className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 bg-background text-xs">
+                                              {editingSubSlug === node.slug ? (
+                                                <>
+                                                  <input value={editSubLabel} onChange={(e) => setEditSubLabel(e.target.value)} autoFocus
+                                                    className="flex-1 h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSubCategory(node.slug); } if (e.key === "Escape") setEditingSubSlug(null); }} />
+                                                  <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
+                                                    className="h-6 px-2 text-xs rounded-full shrink-0">
+                                                    {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
+                                                  </Button>
+                                                  <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
+                                                    <XIcon className="w-3 h-3" />
+                                                  </button>
+                                                </>
+                                              ) : confirmDeleteSubSlug === node.slug ? (
+                                                <>
+                                                  <span className="flex-1 text-destructive truncate">Delete with all children?</span>
+                                                  <button type="button" onClick={() => handleDeleteSubCategory(node.slug)} className="text-destructive font-medium hover:underline shrink-0">Yes</button>
+                                                  <button type="button" onClick={() => setConfirmDeleteSubSlug(null)} className="text-muted-foreground hover:text-foreground shrink-0 ml-1">No</button>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/30 shrink-0" />
+                                                  <span className="flex-1 truncate">{node.label}</span>
+                                                  <button type="button" title="Add child" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                                                    className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
+                                                  <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
+                                                    className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><Pencil className="w-3 h-3" /></button>
+                                                  <button type="button" title="Delete" onClick={() => {
+                                                      const hasChildren = (s.subCategories ?? []).some((sc) => sc.parentSlug === node.slug);
+                                                      if (hasChildren) setConfirmDeleteSubSlug(node.slug); else handleDeleteSubCategory(node.slug);
+                                                    }}
+                                                    className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"><Trash2 className="w-3 h-3" /></button>
+                                                </>
+                                              )}
+                                            </div>
+                                          ))}
+
+                                          {addingSubParent !== null && (
+                                            <div style={{ marginLeft: `${addSubFormDepth * 14}px` }}
+                                              className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-primary/40 bg-primary/5">
+                                              <input value={newSubLabel} onChange={(e) => setNewSubLabel(e.target.value)} autoFocus placeholder="Sub-category name"
+                                                className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSubCategory(); } if (e.key === "Escape") { setAddingSubParent(null); setNewSubLabel(""); } }} />
+                                              <Button type="button" size="sm" onClick={handleAddSubCategory} disabled={savingNewSub || !newSubLabel.trim()}
+                                                className="h-6 px-2 text-xs rounded-full shrink-0">
+                                                {savingNewSub ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Add"}
+                                              </Button>
+                                              <button type="button" onClick={() => { setAddingSubParent(null); setNewSubLabel(""); }}
+                                                className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
+                                                <XIcon className="w-3 h-3" />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                );
+                              })()}
+
                             </div>
                           )}
                         </div>
                       );
                     })}
 
-                    {workSections.length === 0 && !addingNewSection && (
+                    {activeSections.length === 0 && !addingNewSection && (
                       <p className="text-sm text-muted-foreground text-center py-3">No categories yet. Click "Add Category" to create one.</p>
                     )}
                     {addingNewSection && (
