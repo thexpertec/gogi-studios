@@ -166,7 +166,7 @@ export default function DomainGalleryPage({
                             {group.heading}
                           </h3>
                         )}
-                        <div className="columns-1 sm:columns-2 lg:columns-3 gap-5 space-y-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                           {group.items.map((item) => {
                             const isVideo = item.mediaType === "video";
 
@@ -174,22 +174,23 @@ export default function DomainGalleryPage({
                               const embed = toEmbedUrl(item.videoUrl);
                               return (
                                 <div key={item.id}
-                                  className="break-inside-avoid bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300">
-                                  {embed?.type === "iframe" ? (
-                                    <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                                  className="flex flex-col bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300">
+                                  <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                                    {embed?.type === "iframe" ? (
                                       <iframe src={embed.src} className="absolute inset-0 w-full h-full"
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                         allowFullScreen title={item.caption} loading="lazy" />
-                                    </div>
-                                  ) : embed?.type === "video" ? (
-                                    <video src={embed.src} controls preload="metadata" className="w-full" />
-                                  ) : (
-                                    <div className="p-4 bg-muted/30 flex items-center justify-center">
-                                      <a href={item.videoUrl!} target="_blank" rel="noopener noreferrer"
-                                        className="text-xs text-primary underline break-all">{item.videoUrl}</a>
-                                    </div>
-                                  )}
-                                  <div className="px-5 py-4 border-t border-border">
+                                    ) : embed?.type === "video" ? (
+                                      <video src={embed.src} controls preload="metadata"
+                                        className="absolute inset-0 w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="absolute inset-0 bg-muted/30 flex items-center justify-center p-4">
+                                        <a href={item.videoUrl!} target="_blank" rel="noopener noreferrer"
+                                          className="text-xs text-primary underline break-all">{item.videoUrl}</a>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="px-5 py-4 border-t border-border mt-auto">
                                     <p className="text-sm text-muted-foreground leading-snug">{item.caption}</p>
                                   </div>
                                 </div>
@@ -200,19 +201,19 @@ export default function DomainGalleryPage({
                             const hasError = imgErrors[item.id];
                             return (
                               <div key={item.id}
-                                className="break-inside-avoid bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300 group">
-                                {imgUrl && !hasError ? (
-                                  <div className="w-full bg-muted/30 overflow-hidden">
+                                className="flex flex-col bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300 group">
+                                <div className="relative w-full aspect-[4/3] bg-muted/30 overflow-hidden">
+                                  {imgUrl && !hasError ? (
                                     <img src={imgUrl} alt={item.caption}
-                                      className="w-full h-auto object-contain group-hover:scale-[1.02] transition-transform duration-500"
+                                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                                       onError={() => setImgErrors((prev) => ({ ...prev, [item.id]: true }))} />
-                                  </div>
-                                ) : (
-                                  <div className="w-full h-48 bg-muted/40 flex items-center justify-center">
-                                    <ImageIcon className="w-10 h-10 text-muted-foreground/20" />
-                                  </div>
-                                )}
-                                <div className="px-5 py-4 border-t border-border">
+                                  ) : (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <ImageIcon className="w-10 h-10 text-muted-foreground/20" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="px-5 py-4 border-t border-border mt-auto">
                                   <p className="text-sm text-muted-foreground leading-snug">{item.caption}</p>
                                 </div>
                               </div>
