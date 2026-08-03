@@ -36,8 +36,10 @@ router.post("/work-gallery/:section", async (req, res) => {
   if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
   const { section } = req.params;
   if (!isValidSlug(section)) { res.status(400).json({ ok: false, error: "Invalid section slug." }); return; }
-  const { caption, subCategorySlug } = req.body as { caption?: string; subCategorySlug?: string | null };
+  const { caption, subCategorySlug, mediaType, videoUrl } = req.body as { caption?: string; subCategorySlug?: string | null; mediaType?: string; videoUrl?: string | null };
   if (!caption?.trim()) { res.status(400).json({ ok: false, error: "caption is required." }); return; }
+  const mType = (mediaType === "video") ? "video" : "image";
+  if (mType === "video" && !videoUrl?.trim()) { res.status(400).json({ ok: false, error: "videoUrl is required for video items." }); return; }
 
   try {
     const [{ maxOrder }] = await db.select({ maxOrder: max(workGalleryTable.sortOrder) }).from(workGalleryTable).where(eq(workGalleryTable.sectionSlug, section));
@@ -49,6 +51,7 @@ router.post("/work-gallery/:section", async (req, res) => {
     const [item] = await db.insert(workGalleryTable).values({
       id, sectionSlug: section, subCategorySlug: subCategorySlug ?? null,
       caption: caption.trim(), sortOrder: (maxOrder ?? -1) + 1,
+      mediaType: mType, videoUrl: mType === "video" ? (videoUrl?.trim() ?? null) : null,
     }).returning();
     res.json({ ok: true, item: { ...item, imageUrl: `/api/content-images/work-${section}/${id}` } });
   } catch {
@@ -60,12 +63,13 @@ router.post("/work-gallery/:section", async (req, res) => {
 router.patch("/work-gallery/:section/:id", async (req, res) => {
   if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
   const { section, id } = req.params;
-  const { caption, subCategorySlug } = req.body as { caption?: string; subCategorySlug?: string | null };
+  const { caption, subCategorySlug, mediaType, videoUrl } = req.body as { caption?: string; subCategorySlug?: string | null; mediaType?: string; videoUrl?: string | null };
   if (!caption?.trim()) { res.status(400).json({ ok: false, error: "caption is required." }); return; }
 
   try {
     const update: any = { caption: caption.trim() };
     if (subCategorySlug !== undefined) update.subCategorySlug = subCategorySlug ?? null;
+    if (mediaType !== undefined) { update.mediaType = mediaType === "video" ? "video" : "image"; update.videoUrl = mediaType === "video" ? (videoUrl?.trim() ?? null) : null; }
     const [item] = await db.update(workGalleryTable).set(update)
       .where(and(eq(workGalleryTable.id, id), eq(workGalleryTable.sectionSlug, section)))
       .returning();

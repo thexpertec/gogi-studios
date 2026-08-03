@@ -6,6 +6,8 @@ export const workGalleryTable = pgTable("work_gallery", {
   subCategorySlug: text("sub_category_slug"),
   caption:         text("caption").notNull(),
   sortOrder:       integer("sort_order").notNull().default(0),
+  mediaType:       text("media_type").notNull().default("image"), // "image" | "video"
+  videoUrl:        text("video_url"),                             // YouTube / Vimeo / direct URL
 });
 
 export type WorkGalleryItem = typeof workGalleryTable.$inferSelect;

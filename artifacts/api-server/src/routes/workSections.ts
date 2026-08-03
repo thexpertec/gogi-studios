@@ -13,16 +13,21 @@ function isValidSlug(s: string): boolean {
   return /^[a-z0-9-]+$/.test(s) && s.length > 0 && s.length <= 100;
 }
 
-/** GET /api/work-sections — public; returns sections with nested subCategories */
-router.get("/work-sections", async (_req, res) => {
+/** GET /api/work-sections — public
+ *  ?domain=work (default) | ?domain=services | … | ?domain=all (admin)
+ */
+router.get("/work-sections", async (req, res) => {
+  const domainParam = (req.query.domain as string | undefined) ?? "work";
   try {
     const [sections, subCats] = await Promise.all([
       db.select().from(workSectionsTable).orderBy(asc(workSectionsTable.sortOrder)),
       db.select().from(workSubCategoriesTable).orderBy(asc(workSubCategoriesTable.sortOrder)),
     ]);
-    const result = sections.map((s) => ({
+    const filtered = domainParam === "all" ? sections : sections.filter((s) => (s.domain ?? "work") === domainParam);
+    const result = filtered.map((s) => ({
       slug: s.slug,
       label: s.label,
+      domain: s.domain ?? "work",
       subCategories: subCats
         .filter((sc) => sc.sectionSlug === s.slug)
         .map((sc) => ({ slug: sc.slug, label: sc.label, parentSlug: sc.parentSlug ?? null })),
@@ -33,17 +38,20 @@ router.get("/work-sections", async (_req, res) => {
   }
 });
 
-/** POST /api/work-sections — admin; { slug, label } */
+const VALID_DOMAINS = new Set(["work", "services", "awards", "news", "books", "shop"]);
+
+/** POST /api/work-sections — admin; { slug, label, domain? } */
 router.post("/work-sections", async (req, res) => {
   if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
-  const { slug, label } = req.body as { slug?: string; label?: string };
+  const { slug, label, domain } = req.body as { slug?: string; label?: string; domain?: string };
   if (!slug?.trim() || !label?.trim()) { res.status(400).json({ ok: false, error: "slug and label are required." }); return; }
   if (!isValidSlug(slug.trim())) { res.status(400).json({ ok: false, error: "Invalid slug." }); return; }
+  const domainVal = (domain && VALID_DOMAINS.has(domain)) ? domain : "work";
 
   try {
     const [{ maxOrder }] = await db.select({ maxOrder: max(workSectionsTable.sortOrder) }).from(workSectionsTable);
-    const [section] = await db.insert(workSectionsTable).values({ slug: slug.trim(), label: label.trim(), sortOrder: (maxOrder ?? -1) + 1 }).returning();
-    res.json({ ok: true, section: { ...section, subCategories: [] } });
+    const [section] = await db.insert(workSectionsTable).values({ slug: slug.trim(), label: label.trim(), sortOrder: (maxOrder ?? -1) + 1, domain: domainVal }).returning();
+    res.json({ ok: true, section: { ...section, domain: section.domain, subCategories: [] } });
   } catch (err: any) {
     if (err?.code === "23505") { res.status(409).json({ ok: false, error: "Slug already exists." }); return; }
     res.status(500).json({ ok: false, error: "Failed to create section." });

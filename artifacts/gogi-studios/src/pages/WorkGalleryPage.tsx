@@ -9,10 +9,26 @@ interface GalleryItem {
   caption: string;
   imageUrl: string;
   subCategorySlug?: string | null;
+  mediaType?: string | null;
+  videoUrl?: string | null;
 }
 
 interface Props {
   slug?: string;
+}
+
+/** Convert a YouTube / Vimeo / direct URL to an embeddable URL. Returns null if unrecognised. */
+function toEmbedUrl(url: string): { type: "iframe" | "video"; src: string } | null {
+  const ytMatch = url.match(
+    /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  if (ytMatch) return { type: "iframe", src: `https://www.youtube.com/embed/${ytMatch[1]}?rel=0` };
+
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) return { type: "iframe", src: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
+
+  if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url)) return { type: "video", src: url };
+  return null;
 }
 
 export default function WorkGalleryPage({ slug = "" }: Props) {
@@ -71,7 +87,6 @@ export default function WorkGalleryPage({ slug = "" }: Props) {
   const groups: Group[] = [];
 
   if (treeOrder.length === 0) {
-    // No sub-categories — flat list
     if (items.length > 0) groups.push({ key: null, heading: null, items });
   } else {
     const grouped = new Map<string, GalleryItem[]>();
@@ -148,6 +163,50 @@ export default function WorkGalleryPage({ slug = "" }: Props) {
                 )}
                 <div className="columns-1 sm:columns-2 lg:columns-3 gap-5 space-y-5">
                   {group.items.map((item) => {
+                    const isVideo = item.mediaType === "video";
+
+                    if (isVideo && item.videoUrl) {
+                      const embed = toEmbedUrl(item.videoUrl);
+                      return (
+                        <div
+                          key={item.id}
+                          className="break-inside-avoid bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300"
+                        >
+                          {embed?.type === "iframe" ? (
+                            <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                              <iframe
+                                src={embed.src}
+                                className="absolute inset-0 w-full h-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title={item.caption}
+                                loading="lazy"
+                              />
+                            </div>
+                          ) : embed?.type === "video" ? (
+                            <video
+                              src={embed.src}
+                              controls
+                              preload="metadata"
+                              className="w-full"
+                            />
+                          ) : (
+                            // Fallback: show link if URL not parseable
+                            <div className="p-4 bg-muted/30 flex items-center justify-center">
+                              <a href={item.videoUrl} target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-primary underline break-all">
+                                {item.videoUrl}
+                              </a>
+                            </div>
+                          )}
+                          <div className="px-5 py-4 border-t border-border">
+                            <p className="text-sm text-muted-foreground leading-snug">{item.caption}</p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Image item
                     const imgUrl = getImgUrl(item);
                     const hasError = imgErrors[item.id];
                     return (

@@ -34,10 +34,19 @@ const PLATFORM_OPTIONS = [
 type Tab = "branding" | "contact" | "logo" | "social" | "images" | "testimonials" | "workgallery";
 type SectionType = "books" | "merchandise" | "projects";
 
+const GALLERY_DOMAINS = [
+  { id: "work",     label: "Work" },
+  { id: "services", label: "Services" },
+  { id: "awards",   label: "Awards" },
+  { id: "news",     label: "News" },
+  { id: "books",    label: "Books" },
+  { id: "shop",     label: "Shop" },
+] as const;
+
 interface CatalogItem { id: string; name: string; }
 interface CatalogState { books: CatalogItem[]; merchandise: CatalogItem[]; projects: CatalogItem[]; }
 interface TestimonialItem { id: string; caption: string; }
-interface WorkGalleryItem { id: string; caption: string; subCategorySlug?: string | null; }
+interface WorkGalleryItem { id: string; caption: string; subCategorySlug?: string | null; mediaType?: string; videoUrl?: string | null; }
 
 /** Convert a human label to a kebab-case slug. */
 function labelToSlug(label: string): string {
@@ -127,6 +136,8 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
 
   // Work Gallery — sections management
   const [workSections, setWorkSections] = useState<WorkSection[]>([]);
+  const [galleryDomain, setGalleryDomain] = useState<string>("work");
+  const [otherDomainSections, setOtherDomainSections] = useState<Record<string, WorkSection[]>>({});
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [savingEditSection, setSavingEditSection] = useState(false);
@@ -139,6 +150,8 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const [workGalleryItems, setWorkGalleryItems] = useState<Record<string, WorkGalleryItem[]>>({});
   const [addingWorkItem, setAddingWorkItem] = useState(false);
   const [newWorkCaption, setNewWorkCaption] = useState("");
+  const [newWorkMediaType, setNewWorkMediaType] = useState<"image" | "video">("image");
+  const [newWorkVideoUrl, setNewWorkVideoUrl] = useState("");
   const [newWorkFile, setNewWorkFile] = useState<File | null>(null);
   const [newWorkPreview, setNewWorkPreview] = useState<string | null>(null);
   const [savingWorkItem, setSavingWorkItem] = useState(false);
@@ -174,7 +187,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     setEditingCatalogKey(null); setEditCatalogName(""); setConfirmDeleteCatalogKey(null);
     setAddingTestimonial(false); setNewTestiCaption(""); setNewTestiFile(null); setNewTestiPreview(null);
     setEditingTestiId(null); setEditTestiCaption(""); setConfirmDeleteTestiId(null);
-    setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null);
+    setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null);
     setEditingSlug(null); setEditLabel(""); setAddingNewSection(false); setNewSectionLabel("");
     setEditingSubSlug(null); setEditSubLabel(""); setAddingSubParent(null); setNewSubLabel(""); setConfirmDeleteSubSlug(null); setNewWorkSubCategory(""); setExpandedSubSection(null);
 
@@ -184,7 +197,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       fetch(`${API}/content-images`).then((r) => r.json()).catch(() => ({})),
       fetch(`${API}/catalog`).then((r) => r.json()).catch(() => ({ books: [], merchandise: [], projects: [] })),
       fetch(`${API}/testimonials`).then((r) => r.json()).catch(() => ({ items: [] })),
-      fetch(`${API}/work-sections`).then((r) => r.json()).catch(() => []),
+      fetch(`${API}/work-sections?domain=all`).then((r) => r.json()).catch(() => []),
     ])
       .then(async ([data, logoUrl, imgMap, cat, testi, sectionsData]) => {
         setCompanyName(data.companyName ?? "");
@@ -197,13 +210,22 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
         setContentImages(imgMap ?? {});
         setCatalog({ books: cat.books ?? [], merchandise: cat.merchandise ?? [], projects: cat.projects ?? [] });
         setTestimonialsList(testi.items ?? []);
-        const sections: WorkSection[] = Array.isArray(sectionsData) ? sectionsData : [];
-        setWorkSections(sections);
-        setActiveWorkSection((prev) => sections.some((s) => s.slug === prev) ? prev : (sections[0]?.slug ?? ""));
-        setExpandedSubSection((prev) => sections.some((s) => s.slug === prev) ? prev : (sections[0]?.slug ?? null));
-        // Load gallery items for each section
+        const allSections: WorkSection[] = Array.isArray(sectionsData) ? sectionsData : [];
+        // Group by domain
+        const grouped: Record<string, WorkSection[]> = {};
+        for (const s of allSections) {
+          const d = s.domain ?? "work";
+          if (!grouped[d]) grouped[d] = [];
+          grouped[d].push(s);
+        }
+        const workSecs = grouped["work"] ?? [];
+        setWorkSections(workSecs);
+        setOtherDomainSections(grouped);
+        setActiveWorkSection((prev) => workSecs.some((s) => s.slug === prev) ? prev : (workSecs[0]?.slug ?? ""));
+        setExpandedSubSection((prev) => workSecs.some((s) => s.slug === prev) ? prev : (workSecs[0]?.slug ?? null));
+        // Load gallery items for ALL sections across all domains
         const wg: Record<string, WorkGalleryItem[]> = {};
-        await Promise.all(sections.map(async (s) => {
+        await Promise.all(allSections.map(async (s) => {
           const r = await fetch(`${API}/work-gallery/${s.slug}`).then((res) => res.json()).catch(() => ({ items: [] }));
           wg[s.slug] = r.items ?? [];
         }));
@@ -429,19 +451,32 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     finally { setDeletingTesti(false); }
   }
 
+  // Helpers — domain-aware section state
+  function getActiveSections(): WorkSection[] {
+    return galleryDomain === "work" ? workSections : (otherDomainSections[galleryDomain] ?? []);
+  }
+  function setActiveSections(sections: WorkSection[]) {
+    if (galleryDomain === "work") {
+      setWorkSections(sections);
+      window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: sections } }));
+    } else {
+      setOtherDomainSections((prev) => ({ ...prev, [galleryDomain]: sections }));
+    }
+  }
+
   // Work Gallery — section management
   async function handleRenameSection(slug: string) {
     if (!editLabel.trim()) { setEditingSlug(null); return; }
-    const current = workSections.find((s) => s.slug === slug);
+    const activeSections = getActiveSections();
+    const current = activeSections.find((s) => s.slug === slug);
     if (editLabel.trim() === current?.label) { setEditingSlug(null); return; }
     setSavingEditSection(true); setError("");
     try {
       const r = await fetch(`${API}/work-sections/${slug}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: editLabel.trim() }) });
       const data = await r.json();
       if (data.ok) {
-        const updated = workSections.map((s) => s.slug === slug ? { ...s, label: editLabel.trim() } : s);
-        setWorkSections(updated); setEditingSlug(null);
-        window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
+        setActiveSections(activeSections.map((s) => s.slug === slug ? { ...s, label: editLabel.trim() } : s));
+        setEditingSlug(null);
       } else { setError(data.error ?? "Failed to rename section."); }
     } catch { setError("Network error."); }
     finally { setSavingEditSection(false); }
@@ -453,12 +488,12 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       const r = await fetch(`${API}/work-sections/${slug}`, { method: "DELETE", credentials: "include" });
       const data = await r.json();
       if (data.ok) {
-        const updated = workSections.filter((s) => s.slug !== slug);
-        setWorkSections(updated);
+        const activeSections = getActiveSections();
+        const updated = activeSections.filter((s) => s.slug !== slug);
+        setActiveSections(updated);
         if (activeWorkSection === slug) setActiveWorkSection(updated[0]?.slug ?? "");
         const { [slug]: _removed, ...rest } = workGalleryItems;
         setWorkGalleryItems(rest);
-        window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
       } else { setError(data.error ?? "Failed to delete section."); }
     } catch { setError("Network error."); }
   }
@@ -469,15 +504,13 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     if (!slug) { setError("Category name must contain at least one letter or number."); return; }
     setSavingNewSection(true); setError("");
     try {
-      const r = await fetch(`${API}/work-sections`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, label: newSectionLabel.trim() }) });
+      const r = await fetch(`${API}/work-sections`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, label: newSectionLabel.trim(), domain: galleryDomain }) });
       const data = await r.json();
       if (data.ok) {
-        const updated = [...workSections, data.section];
-        setWorkSections(updated);
+        setActiveSections([...getActiveSections(), data.section]);
         setWorkGalleryItems((prev) => ({ ...prev, [data.section.slug]: [] }));
         setAddingNewSection(false); setNewSectionLabel("");
-        setExpandedSubSection(data.section.slug); // auto-expand newly created section
-        window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
+        setExpandedSubSection(data.section.slug);
       } else { setError(data.error ?? "Failed to add section."); }
     } catch { setError("Network error."); }
     finally { setSavingNewSection(false); }
@@ -494,9 +527,9 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await r.json();
       if (data.ok) {
-        const updated = workSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: [...(s.subCategories ?? []), data.subCategory] } : s);
-        setWorkSections(updated); setAddingSubParent(null); setNewSubLabel("");
-        window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
+        const activeSections = getActiveSections();
+        setActiveSections(activeSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: [...(s.subCategories ?? []), data.subCategory] } : s));
+        setAddingSubParent(null); setNewSubLabel("");
       } else { setError(data.error ?? "Failed to add sub-category."); }
     } catch { setError("Network error."); }
     finally { setSavingNewSub(false); }
@@ -504,7 +537,8 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
 
   async function handleRenameSubCategory(subSlug: string) {
     if (!editSubLabel.trim() || !expandedSubSection) { setEditingSubSlug(null); return; }
-    const sec = workSections.find((s) => s.slug === expandedSubSection);
+    const activeSections = getActiveSections();
+    const sec = activeSections.find((s) => s.slug === expandedSubSection);
     const current = sec?.subCategories?.find((s) => s.slug === subSlug);
     if (editSubLabel.trim() === current?.label) { setEditingSubSlug(null); return; }
     setSavingSubEdit(true); setError("");
@@ -512,9 +546,8 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories/${subSlug}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: editSubLabel.trim() }) });
       const data = await r.json();
       if (data.ok) {
-        const updated = workSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).map((sub) => sub.slug === subSlug ? { ...sub, label: editSubLabel.trim() } : sub) } : s);
-        setWorkSections(updated); setEditingSubSlug(null);
-        window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
+        setActiveSections(activeSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).map((sub) => sub.slug === subSlug ? { ...sub, label: editSubLabel.trim() } : sub) } : s));
+        setEditingSubSlug(null);
       } else { setError(data.error ?? "Failed to rename sub-category."); }
     } catch { setError("Network error."); }
     finally { setSavingSubEdit(false); }
@@ -527,14 +560,14 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories/${subSlug}`, { method: "DELETE", credentials: "include" });
       const data = await r.json();
       if (data.ok) {
+        const activeSections = getActiveSections();
         const deletedSlugs = new Set<string>(data.deleted ?? [subSlug]);
-        const updated = workSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).filter((sub) => !deletedSlugs.has(sub.slug)) } : s);
-        setWorkSections(updated); setConfirmDeleteSubSlug(null);
+        setActiveSections(activeSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).filter((sub) => !deletedSlugs.has(sub.slug)) } : s));
+        setConfirmDeleteSubSlug(null);
         const sectionItems = (workGalleryItems[expandedSubSection] ?? []).map((item) =>
           item.subCategorySlug && deletedSlugs.has(item.subCategorySlug) ? { ...item, subCategorySlug: null } : item
         );
         setWorkGalleryItems((prev) => ({ ...prev, [expandedSubSection]: sectionItems }));
-        window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
       } else { setError(data.error ?? "Failed to delete sub-category."); }
     } catch { setError("Network error."); }
   }
@@ -579,12 +612,13 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     if (!newWorkCaption.trim()) return;
     setSavingWorkItem(true); setError("");
     try {
-      const r = await fetch(`${API}/work-gallery/${activeWorkSection}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caption: newWorkCaption.trim(), subCategorySlug: newWorkSubCategory || null }) });
+      if (newWorkMediaType === "video" && !newWorkVideoUrl.trim()) { setError("Please enter a video URL."); setSavingWorkItem(false); return; }
+      const r = await fetch(`${API}/work-gallery/${activeWorkSection}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caption: newWorkCaption.trim(), subCategorySlug: newWorkSubCategory || null, mediaType: newWorkMediaType, videoUrl: newWorkMediaType === "video" ? newWorkVideoUrl.trim() : null }) });
       const data = await r.json();
       if (!data.ok) { setError(data.error ?? "Failed to add item."); return; }
-      const newItem: WorkGalleryItem = { id: data.item.id, caption: data.item.caption, subCategorySlug: newWorkSubCategory || null };
+      const newItem: WorkGalleryItem = { id: data.item.id, caption: data.item.caption, subCategorySlug: newWorkSubCategory || null, mediaType: newWorkMediaType, videoUrl: newWorkMediaType === "video" ? newWorkVideoUrl.trim() : null };
       let newContentImages = { ...contentImages };
-      if (newWorkFile) {
+      if (newWorkMediaType === "image" && newWorkFile) {
         const type = `work-${activeWorkSection}`;
         const base64 = await toBase64(newWorkFile);
         const ir = await fetch(`${API}/content-images/${type}/${newItem.id}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: base64, mimeType: newWorkFile.type }) });
@@ -594,7 +628,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       const updatedSection = [...(workGalleryItems[activeWorkSection] ?? []), newItem];
       const updatedGallery = { ...workGalleryItems, [activeWorkSection]: updatedSection };
       setWorkGalleryItems(updatedGallery);
-      setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory("");
+      setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory("");
       window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workGallery: updatedGallery, contentImages: newContentImages } }));
     } catch { setError("Network error adding item."); }
     finally { setSavingWorkItem(false); }
@@ -619,19 +653,22 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     { id: "social",       label: "Social Links" },
     { id: "images",       label: "Page Images" },
     { id: "testimonials", label: "Testimonials" },
-    { id: "workgallery",  label: "Work Gallery" },
+    { id: "workgallery",  label: "Galleries" },
   ];
 
   const isActionTab = activeTab === "logo" || activeTab === "images" || activeTab === "testimonials" || activeTab === "workgallery";
   const SECTION_TYPES: SectionType[] = ["books", "merchandise", "projects"];
 
+  // Derived: domain-aware sections
+  const activeSections = galleryDomain === "work" ? workSections : (otherDomainSections[galleryDomain] ?? []);
+
   // Derived: active section for image-upload sub-category selector
-  const activeSection = workSections.find((s) => s.slug === activeWorkSection);
+  const activeSection = activeSections.find((s) => s.slug === activeWorkSection);
   const activeSubCategories: SubCategory[] = activeSection?.subCategories ?? [];
   const activeTreeNodes = buildTreeOrder(activeSubCategories);
 
   // Derived: expanded section for inline sub-category management
-  const expandedSectionData = workSections.find((s) => s.slug === expandedSubSection);
+  const expandedSectionData = activeSections.find((s) => s.slug === expandedSubSection);
   const expandedTreeNodes = buildTreeOrder(expandedSectionData?.subCategories ?? []);
   const addSubFormDepth = addingSubParent === "root" ? 0
     : (expandedTreeNodes.find((n) => n.node.slug === addingSubParent)?.depth ?? 0) + 1;
@@ -953,15 +990,34 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
               </div>
             )}
 
-            {/* ── WORK GALLERY ── */}
+            {/* ── GALLERIES ── */}
             {activeTab === "workgallery" && (
               <div className="flex flex-col gap-4">
-                <p className="text-sm text-muted-foreground">Manage your work categories and upload images to each one.</p>
+                <p className="text-sm text-muted-foreground">Manage categories, sub-categories, and media for each site section.</p>
+
+                {/* ── Domain selector ── */}
+                <div className="flex flex-wrap gap-1.5">
+                  {GALLERY_DOMAINS.map((d) => (
+                    <button key={d.id} type="button"
+                      onClick={() => {
+                        setGalleryDomain(d.id);
+                        setExpandedSubSection(null); setAddingNewSection(false); setNewSectionLabel("");
+                        setEditingSlug(null); setEditingSubSlug(null); setAddingSubParent(null);
+                        setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl("");
+                        setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory("");
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${galleryDomain === d.id ? "bg-primary text-white border-primary" : "border-border text-muted-foreground hover:text-foreground bg-background"}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
 
                 {/* ── Section manager with inline sub-categories ── */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Work Categories</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {GALLERY_DOMAINS.find((d) => d.id === galleryDomain)?.label ?? ""} Categories
+                    </p>
                     {!addingNewSection && (
                       <button type="button" onClick={() => { setAddingNewSection(true); setEditingSlug(null); }}
                         className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
@@ -971,7 +1027,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    {workSections.map((s) => {
+                    {activeSections.map((s) => {
                       const isExpanded = expandedSubSection === s.slug;
                       const sectionTree = buildTreeOrder(s.subCategories ?? []);
                       return (
@@ -998,14 +1054,19 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                   onClick={() => {
                                     const next = isExpanded ? null : s.slug;
                                     setExpandedSubSection(next);
+                                    if (next) setActiveWorkSection(next);
                                     setAddingSubParent(null); setNewSubLabel(""); setEditingSubSlug(null); setConfirmDeleteSubSlug(null);
+                                    setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory("");
                                   }}
                                   className="flex items-center gap-2 flex-1 text-left group">
                                   <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-muted-foreground/50 transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`} />
                                   <span className="text-sm text-foreground group-hover:text-primary transition-colors">{s.label}</span>
-                                  {(s.subCategories ?? []).length > 0 && (
-                                    <span className="ml-1 text-[10px] text-muted-foreground/50">
-                                      {(s.subCategories ?? []).length} sub
+                                  {((s.subCategories ?? []).length > 0 || (workGalleryItems[s.slug] ?? []).length > 0) && (
+                                    <span className="ml-1.5 text-[10px] text-muted-foreground/40">
+                                      {[
+                                        (workGalleryItems[s.slug] ?? []).length > 0 && `${(workGalleryItems[s.slug] ?? []).length} img`,
+                                        (s.subCategories ?? []).length > 0 && `${(s.subCategories ?? []).length} sub`,
+                                      ].filter(Boolean).join(" · ")}
                                     </span>
                                   )}
                                 </button>
@@ -1021,93 +1082,215 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                             )}
                           </div>
 
-                          {/* ── Inline sub-categories (visible when expanded) ── */}
+                          {/* ── Expanded panel: sub-categories + images ── */}
                           {isExpanded && (
-                            <div className="border-t border-border/60 bg-muted/20 px-3 py-2.5 flex flex-col gap-1">
-                              <div className="flex items-center justify-between mb-1.5">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                                  Sub-categories — appear as flyout in nav
+                            <div className="border-t border-border/60 bg-muted/20 flex flex-col">
+
+                              {/* ── Sub-categories ── */}
+                              <div className="px-3 pt-2.5 pb-2 flex flex-col gap-1">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                                    Sub-categories — appear as flyout in nav
+                                  </p>
+                                  {addingSubParent === null && (
+                                    <button type="button"
+                                      onClick={() => { setAddingSubParent("root"); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
+                                      <Plus className="w-3 h-3" /> Add
+                                    </button>
+                                  )}
+                                </div>
+
+                                {sectionTree.map(({ node, depth }) => (
+                                  <div key={node.slug} style={{ marginLeft: `${depth * 14}px` }}
+                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 bg-background text-xs">
+                                    {editingSubSlug === node.slug ? (
+                                      <>
+                                        <input value={editSubLabel} onChange={(e) => setEditSubLabel(e.target.value)} autoFocus
+                                          className="flex-1 h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSubCategory(node.slug); } if (e.key === "Escape") setEditingSubSlug(null); }} />
+                                        <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
+                                          className="h-6 px-2 text-xs rounded-full shrink-0">
+                                          {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
+                                        </Button>
+                                        <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
+                                          <XIcon className="w-3 h-3" />
+                                        </button>
+                                      </>
+                                    ) : confirmDeleteSubSlug === node.slug ? (
+                                      <>
+                                        <span className="flex-1 text-destructive truncate">Delete with all children?</span>
+                                        <button type="button" onClick={() => handleDeleteSubCategory(node.slug)} className="text-destructive font-medium hover:underline shrink-0">Yes</button>
+                                        <button type="button" onClick={() => setConfirmDeleteSubSlug(null)} className="text-muted-foreground hover:text-foreground shrink-0 ml-1">No</button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/30 shrink-0" />
+                                        <span className="flex-1 truncate">{node.label}</span>
+                                        <button type="button" title="Add child sub-category" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                                          className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
+                                          <Plus className="w-3 h-3" />
+                                        </button>
+                                        <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
+                                          className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
+                                          <Pencil className="w-3 h-3" />
+                                        </button>
+                                        <button type="button" title="Delete" onClick={() => {
+                                            const hasChildren = (s.subCategories ?? []).some((sc) => sc.parentSlug === node.slug);
+                                            if (hasChildren) setConfirmDeleteSubSlug(node.slug);
+                                            else handleDeleteSubCategory(node.slug);
+                                          }}
+                                          className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                ))}
+
+                                {sectionTree.length === 0 && addingSubParent === null && (
+                                  <p className="text-xs text-muted-foreground/60 text-center py-1">No sub-categories yet.</p>
+                                )}
+
+                                {addingSubParent !== null && (
+                                  <div style={{ marginLeft: `${addSubFormDepth * 14}px` }}
+                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-primary/40 bg-primary/5">
+                                    <input value={newSubLabel} onChange={(e) => setNewSubLabel(e.target.value)} autoFocus placeholder="Sub-category name"
+                                      className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSubCategory(); } if (e.key === "Escape") { setAddingSubParent(null); setNewSubLabel(""); } }} />
+                                    <Button type="button" size="sm" onClick={handleAddSubCategory} disabled={savingNewSub || !newSubLabel.trim()}
+                                      className="h-6 px-2 text-xs rounded-full shrink-0">
+                                      {savingNewSub ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Add"}
+                                    </Button>
+                                    <button type="button" onClick={() => { setAddingSubParent(null); setNewSubLabel(""); }}
+                                      className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
+                                      <XIcon className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Divider */}
+                              <div className="h-px bg-border/40 mx-3" />
+
+                              {/* ── Images ── */}
+                              <div className="px-3 pt-2 pb-2.5 flex flex-col gap-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-0.5">
+                                  Media (Images &amp; Videos)
                                 </p>
-                                {addingSubParent === null && (
+
+                                {(workGalleryItems[s.slug] ?? []).length === 0 && !(activeWorkSection === s.slug && addingWorkItem) && (
+                                  <p className="text-xs text-muted-foreground/60 text-center py-1.5">No items yet. Click "+ Add" below.</p>
+                                )}
+
+                                {(workGalleryItems[s.slug] ?? []).map((item) => {
+                                  const isVideo = item.mediaType === "video";
+                                  const imgKey = `work-${s.slug}/${item.id}`;
+                                  const imgUrl = isVideo ? null : contentImages[imgKey];
+                                  const isUploading = uploadingWorkKey === imgKey;
+                                  return (
+                                    <div key={item.id} className="flex items-start gap-3 p-2.5 rounded-xl border border-border/60 bg-background hover:border-primary/30 transition-colors group">
+                                      {isVideo ? (
+                                        <div className="w-14 h-14 rounded-lg border border-border bg-violet-50 dark:bg-violet-950/30 flex flex-col items-center justify-center shrink-0 gap-0.5">
+                                          <svg className="w-5 h-5 text-violet-500" viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18a1 1 0 0 0 0-1.69L9.54 5.98A1 1 0 0 0 8 6.82Z"/></svg>
+                                          <span className="text-[9px] font-semibold text-violet-500 uppercase tracking-wide">Video</span>
+                                        </div>
+                                      ) : (
+                                        <button type="button" onClick={() => triggerWorkImageUpload(s.slug, item.id)} disabled={!!uploadingWorkKey}
+                                          className="w-14 h-14 rounded-lg border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 relative">
+                                          {isUploading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : imgUrl ? (
+                                            <><img src={imgUrl} alt={item.caption} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-3 h-3 text-white" /></div></>
+                                          ) : (
+                                            <><ImageIcon className="w-4 h-4 text-muted-foreground/40" /><div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg"><Camera className="w-3 h-3 text-primary" /></div></>
+                                          )}
+                                        </button>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-foreground line-clamp-2 mb-1">{item.caption}</p>
+                                        {isVideo ? (
+                                          <p className="text-xs text-muted-foreground/60 truncate">{item.videoUrl}</p>
+                                        ) : (
+                                          <button type="button" onClick={() => triggerWorkImageUpload(s.slug, item.id)} disabled={!!uploadingWorkKey}
+                                            className="text-xs text-muted-foreground hover:text-primary transition-colors">{imgUrl ? "Replace image" : "Upload image"}</button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Add media form — shown only inside the expanded (active) section */}
+                                {activeWorkSection === s.slug && addingWorkItem ? (
+                                  <div className="flex flex-col gap-3 p-3 rounded-xl border border-primary/40 bg-primary/5">
+                                    {/* Image / Video toggle */}
+                                    <div className="flex rounded-lg border border-border overflow-hidden self-start">
+                                      {(["image", "video"] as const).map((t) => (
+                                        <button key={t} type="button"
+                                          onClick={() => { setNewWorkMediaType(t); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null); if (newWorkFileRef.current) newWorkFileRef.current.value = ""; }}
+                                          className={`px-3 py-1.5 text-xs font-medium capitalize transition-colors ${newWorkMediaType === t ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground bg-background"}`}>
+                                          {t === "image" ? "🖼 Image" : "🎬 Video"}
+                                        </button>
+                                      ))}
+                                    </div>
+
+                                    {newWorkMediaType === "image" ? (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground mb-2">Image file <span className="opacity-60">(optional — can upload later)</span></p>
+                                        {newWorkPreview ? (
+                                          <div className="flex items-center gap-3">
+                                            <div className="w-24 h-16 rounded-lg border border-primary/30 overflow-hidden shrink-0"><img src={newWorkPreview} alt="Preview" className="w-full h-full object-cover" /></div>
+                                            <button type="button" onClick={() => { setNewWorkFile(null); setNewWorkPreview(null); if (newWorkFileRef.current) newWorkFileRef.current.value = ""; }} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Remove</button>
+                                          </div>
+                                        ) : (
+                                          <button type="button" onClick={() => newWorkFileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors w-full justify-center">
+                                            <ImageIcon className="w-3.5 h-3.5" /> Choose image
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground mb-1.5">Video URL <span className="text-destructive">*</span></p>
+                                        <input type="url" value={newWorkVideoUrl} onChange={(e) => setNewWorkVideoUrl(e.target.value)} autoFocus
+                                          placeholder="https://youtube.com/watch?v=…  or  https://vimeo.com/…"
+                                          className={`${inputCls} text-sm`} />
+                                        <p className="text-[10px] text-muted-foreground/60 mt-1">YouTube, Vimeo, or a direct .mp4 URL</p>
+                                      </div>
+                                    )}
+
+                                    {activeTreeNodes.length > 0 && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground mb-1.5">Sub-category <span className="opacity-60">(optional)</span></p>
+                                        <select value={newWorkSubCategory} onChange={(e) => setNewWorkSubCategory(e.target.value)}
+                                          className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                                          <option value="">— Uncategorised —</option>
+                                          {activeTreeNodes.map(({ node, pathLabel }) => (
+                                            <option key={node.slug} value={node.slug}>{pathLabel}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1.5">Caption <span className="text-destructive">*</span></p>
+                                      <input type="text" value={newWorkCaption} onChange={(e) => setNewWorkCaption(e.target.value)}
+                                        placeholder={newWorkMediaType === "video" ? "e.g. Gogi Spot — Episode 3" : "e.g. Water & Sanitation Awareness Campaign, 2023"}
+                                        className={`${inputCls} text-sm`}
+                                        onKeyDown={(e) => { if (e.key === "Escape") { setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); } }} />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button type="button" size="sm" onClick={handleSaveWorkItem} disabled={savingWorkItem || !newWorkCaption.trim() || (newWorkMediaType === "video" && !newWorkVideoUrl.trim())} className="rounded-full h-9 px-4 gap-1 text-xs">
+                                        {savingWorkItem ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Save {newWorkMediaType === "video" ? "Video" : "Image"}
+                                      </Button>
+                                      <button type="button" onClick={() => { setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2">Cancel</button>
+                                    </div>
+                                  </div>
+                                ) : (
                                   <button type="button"
-                                    onClick={() => { setAddingSubParent("root"); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
-                                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
-                                    <Plus className="w-3 h-3" /> Add
+                                    onClick={() => { setActiveWorkSection(s.slug); setAddingWorkItem(true); setAddingSubParent(null); setNewWorkMediaType("image"); }}
+                                    className="flex items-center justify-center gap-1.5 w-full py-2 text-xs text-primary font-medium border border-dashed border-primary/30 rounded-xl hover:bg-primary/5 hover:border-primary/50 transition-colors">
+                                    <Plus className="w-3.5 h-3.5" /> Add Image or Video
                                   </button>
                                 )}
                               </div>
 
-                              {/* Sub-category rows */}
-                              {sectionTree.map(({ node, depth }) => (
-                                <div key={node.slug} style={{ marginLeft: `${depth * 14}px` }}
-                                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 bg-background text-xs">
-                                  {editingSubSlug === node.slug ? (
-                                    <>
-                                      <input value={editSubLabel} onChange={(e) => setEditSubLabel(e.target.value)} autoFocus
-                                        className="flex-1 h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSubCategory(node.slug); } if (e.key === "Escape") setEditingSubSlug(null); }} />
-                                      <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
-                                        className="h-6 px-2 text-xs rounded-full shrink-0">
-                                        {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
-                                      </Button>
-                                      <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
-                                        <XIcon className="w-3 h-3" />
-                                      </button>
-                                    </>
-                                  ) : confirmDeleteSubSlug === node.slug ? (
-                                    <>
-                                      <span className="flex-1 text-destructive truncate">Delete with all children?</span>
-                                      <button type="button" onClick={() => handleDeleteSubCategory(node.slug)} className="text-destructive font-medium hover:underline shrink-0">Yes</button>
-                                      <button type="button" onClick={() => setConfirmDeleteSubSlug(null)} className="text-muted-foreground hover:text-foreground shrink-0 ml-1">No</button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/30 shrink-0" />
-                                      <span className="flex-1 truncate">{node.label}</span>
-                                      <button type="button" title="Add child sub-category" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
-                                        className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
-                                        <Plus className="w-3 h-3" />
-                                      </button>
-                                      <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
-                                        className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
-                                        <Pencil className="w-3 h-3" />
-                                      </button>
-                                      <button type="button" title="Delete" onClick={() => {
-                                          const hasChildren = (s.subCategories ?? []).some((sc) => sc.parentSlug === node.slug);
-                                          if (hasChildren) setConfirmDeleteSubSlug(node.slug);
-                                          else handleDeleteSubCategory(node.slug);
-                                        }}
-                                        className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              ))}
-
-                              {sectionTree.length === 0 && addingSubParent === null && (
-                                <p className="text-xs text-muted-foreground/60 text-center py-1.5">
-                                  No sub-categories yet. Click "+ Add" to create one.
-                                </p>
-                              )}
-
-                              {/* Add sub-category form */}
-                              {addingSubParent !== null && (
-                                <div style={{ marginLeft: `${addSubFormDepth * 14}px` }}
-                                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-primary/40 bg-primary/5">
-                                  <input value={newSubLabel} onChange={(e) => setNewSubLabel(e.target.value)} autoFocus placeholder="Sub-category name"
-                                    className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSubCategory(); } if (e.key === "Escape") { setAddingSubParent(null); setNewSubLabel(""); } }} />
-                                  <Button type="button" size="sm" onClick={handleAddSubCategory} disabled={savingNewSub || !newSubLabel.trim()}
-                                    className="h-6 px-2 text-xs rounded-full shrink-0">
-                                    {savingNewSub ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Add"}
-                                  </Button>
-                                  <button type="button" onClick={() => { setAddingSubParent(null); setNewSubLabel(""); }}
-                                    className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
-                                    <XIcon className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           )}
                         </div>
@@ -1136,105 +1319,6 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                   </div>
                 </div>
 
-                {workSections.length > 0 && (
-                  <>
-                    <div className="h-px bg-border" />
-
-                    {/* Section selector for image uploads */}
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Upload Images</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {workSections.map((s) => (
-                          <button key={s.slug} type="button"
-                            onClick={() => { setActiveWorkSection(s.slug); setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); }}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${activeWorkSection === s.slug ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}>
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Items for selected section */}
-                    {activeWorkSection && (
-                      <div className="flex flex-col gap-2">
-                        {(workGalleryItems[activeWorkSection] ?? []).length === 0 && !addingWorkItem && (
-                          <p className="text-sm text-muted-foreground text-center py-4">No images yet for this section.</p>
-                        )}
-
-                        {(workGalleryItems[activeWorkSection] ?? []).map((item) => {
-                          const type = `work-${activeWorkSection}`;
-                          const key = `${type}/${item.id}`;
-                          const imgUrl = contentImages[key];
-                          const isUploading = uploadingWorkKey === key;
-                          return (
-                            <div key={item.id} className="flex items-start gap-3 p-3 rounded-xl border border-border hover:border-primary/30 transition-colors group">
-                              <button type="button" onClick={() => triggerWorkImageUpload(activeWorkSection, item.id)} disabled={!!uploadingWorkKey}
-                                className="w-16 h-16 rounded-lg border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 relative">
-                                {isUploading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : imgUrl ? (
-                                  <><img src={imgUrl} alt={item.caption} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-3.5 h-3.5 text-white" /></div></>
-                                ) : (
-                                  <><ImageIcon className="w-5 h-5 text-muted-foreground/40" /><div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg"><Camera className="w-3.5 h-3.5 text-primary" /></div></>
-                                )}
-                              </button>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-foreground line-clamp-2 mb-1">{item.caption}</p>
-                                <button type="button" onClick={() => triggerWorkImageUpload(activeWorkSection, item.id)} disabled={!!uploadingWorkKey}
-                                  className="text-xs text-muted-foreground hover:text-primary transition-colors">{imgUrl ? "Replace image" : "Upload image"}</button>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {addingWorkItem ? (
-                          <div className="flex flex-col gap-3 p-3 rounded-xl border border-primary/40 bg-primary/5 mt-1">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-primary">New Image</p>
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-2">Image <span className="opacity-60">(optional, can add later)</span></p>
-                              {newWorkPreview ? (
-                                <div className="flex items-center gap-3">
-                                  <div className="w-24 h-16 rounded-lg border border-primary/30 overflow-hidden shrink-0"><img src={newWorkPreview} alt="Preview" className="w-full h-full object-cover" /></div>
-                                  <button type="button" onClick={() => { setNewWorkFile(null); setNewWorkPreview(null); if (newWorkFileRef.current) newWorkFileRef.current.value = ""; }} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Remove</button>
-                                </div>
-                              ) : (
-                                <button type="button" onClick={() => newWorkFileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors w-full justify-center">
-                                  <ImageIcon className="w-3.5 h-3.5" /> Choose image
-                                </button>
-                              )}
-                            </div>
-                            {activeTreeNodes.length > 0 && (
-                              <div>
-                                <p className="text-xs text-muted-foreground mb-1.5">Sub-category <span className="opacity-60">(optional)</span></p>
-                                <select value={newWorkSubCategory} onChange={(e) => setNewWorkSubCategory(e.target.value)}
-                                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                                  <option value="">— Uncategorised —</option>
-                                  {activeTreeNodes.map(({ node, pathLabel }) => (
-                                    <option key={node.slug} value={node.slug}>{pathLabel}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1.5">Caption <span className="text-destructive">*</span></p>
-                              <input type="text" value={newWorkCaption} onChange={(e) => setNewWorkCaption(e.target.value)} placeholder="e.g. Water & Sanitation Awareness Campaign, 2023" className={`${inputCls} text-sm`} autoFocus
-                                onKeyDown={(e) => { if (e.key === "Escape") { setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); } }} />
-                            </div>
-                            <div className="flex gap-2">
-                              <Button type="button" size="sm" onClick={handleSaveWorkItem} disabled={savingWorkItem || !newWorkCaption.trim()} className="rounded-full h-9 px-4 gap-1 text-xs">
-                                {savingWorkItem ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Save Image
-                              </Button>
-                              <button type="button" onClick={() => { setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2">Cancel</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button type="button" onClick={() => setAddingWorkItem(true)}
-                            className="flex items-center justify-center gap-1.5 w-full py-2 mt-1 text-xs text-primary font-medium border border-dashed border-primary/30 rounded-xl hover:bg-primary/5 hover:border-primary/50 transition-colors">
-                            <Plus className="w-3.5 h-3.5" /> Add Image
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
             )}
 

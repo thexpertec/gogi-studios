@@ -9,6 +9,7 @@ export interface SubCategory {
 export interface WorkSection {
   slug: string;
   label: string;
+  domain?: string;
   subCategories: SubCategory[];
 }
 

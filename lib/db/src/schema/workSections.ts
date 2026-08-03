@@ -4,6 +4,7 @@ export const workSectionsTable = pgTable("work_sections", {
   slug:      text("slug").primaryKey(),
   label:     text("label").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  domain:    text("domain").notNull().default("work"), // "work" | "services" | "awards" | "news" | "books" | "shop"
 });
 
 export const workSubCategoriesTable = pgTable("work_sub_categories", {
