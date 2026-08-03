@@ -1,75 +1,98 @@
 import { Router } from "express";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
+import { db, workGalleryTable } from "../lib/db";
+import { eq, and, asc, max } from "drizzle-orm";
+import { deleteObject } from "../lib/r2";
 
 const router = Router();
-
 const COOKIE_NAME = "gogi_admin_session";
 const COOKIE_VALUE = "authenticated";
-const GALLERY_PATH = join(process.cwd(), "data", "work-gallery.json");
-
-interface GalleryItem {
-  id: string;
-  caption: string;
-  subCategorySlug?: string | null;
-}
-
-interface GalleryStore {
-  sections: Record<string, GalleryItem[]>;
-  _nextId: number;
-}
 
 function isAdmin(req: any): boolean {
   return req.signedCookies?.[COOKIE_NAME] === COOKIE_VALUE;
 }
-
-function isValidSlug(slug: string): boolean {
-  return /^[a-z0-9-]+$/.test(slug) && slug.length > 0 && slug.length <= 100;
+function isValidSlug(s: string): boolean {
+  return /^[a-z0-9-]+$/.test(s) && s.length > 0 && s.length <= 100;
 }
 
-function readStore(): GalleryStore {
-  try {
-    if (existsSync(GALLERY_PATH)) {
-      return JSON.parse(readFileSync(GALLERY_PATH, "utf-8")) as GalleryStore;
-    }
-  } catch {}
-  return { sections: {}, _nextId: 1 };
-}
-
-function writeStore(store: GalleryStore): void {
-  const dir = join(process.cwd(), "data");
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(GALLERY_PATH, JSON.stringify(store, null, 2), "utf-8");
-}
-
-/** GET /api/work-gallery/:section — public */
-router.get("/work-gallery/:section", (req, res) => {
+/** GET /api/work-gallery/:section */
+router.get("/work-gallery/:section", async (req, res) => {
   const { section } = req.params;
   if (!isValidSlug(section)) { res.status(400).json({ error: "Invalid section slug." }); return; }
-  const store = readStore();
-  const items = (store.sections[section] ?? []).map((item) => ({
-    ...item,
-    imageUrl: `/api/content-images/work-${section}/${item.id}`,
-  }));
-  res.json({ items });
+
+  try {
+    const items = await db.select().from(workGalleryTable)
+      .where(eq(workGalleryTable.sectionSlug, section))
+      .orderBy(asc(workGalleryTable.sortOrder));
+    res.json({
+      items: items.map((i) => ({ ...i, imageUrl: `/api/content-images/work-${section}/${i.id}` })),
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to load gallery." });
+  }
 });
 
-/** POST /api/work-gallery/:section — admin only; { caption, subCategorySlug? } */
-router.post("/work-gallery/:section", (req, res) => {
+/** POST /api/work-gallery/:section */
+router.post("/work-gallery/:section", async (req, res) => {
   if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
   const { section } = req.params;
   if (!isValidSlug(section)) { res.status(400).json({ ok: false, error: "Invalid section slug." }); return; }
   const { caption, subCategorySlug } = req.body as { caption?: string; subCategorySlug?: string | null };
   if (!caption?.trim()) { res.status(400).json({ ok: false, error: "caption is required." }); return; }
-  const store = readStore();
-  const id = `g${store._nextId}`;
-  store._nextId += 1;
-  if (!store.sections[section]) store.sections[section] = [];
-  const item: GalleryItem = { id, caption: caption.trim() };
-  if (subCategorySlug) item.subCategorySlug = subCategorySlug;
-  store.sections[section].push(item);
-  writeStore(store);
-  res.json({ ok: true, item });
+
+  try {
+    const [{ maxOrder }] = await db.select({ maxOrder: max(workGalleryTable.sortOrder) }).from(workGalleryTable).where(eq(workGalleryTable.sectionSlug, section));
+    const rows = await db.select({ id: workGalleryTable.id }).from(workGalleryTable);
+    const nums = rows.map((r) => parseInt(r.id.replace(/\D/g, ""), 10)).filter((n) => !isNaN(n));
+    const nextNum = nums.length ? Math.max(...nums) + 1 : 1;
+    const id = `g${nextNum}`;
+
+    const [item] = await db.insert(workGalleryTable).values({
+      id, sectionSlug: section, subCategorySlug: subCategorySlug ?? null,
+      caption: caption.trim(), sortOrder: (maxOrder ?? -1) + 1,
+    }).returning();
+    res.json({ ok: true, item: { ...item, imageUrl: `/api/content-images/work-${section}/${id}` } });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to create gallery item." });
+  }
+});
+
+/** PATCH /api/work-gallery/:section/:id */
+router.patch("/work-gallery/:section/:id", async (req, res) => {
+  if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
+  const { section, id } = req.params;
+  const { caption, subCategorySlug } = req.body as { caption?: string; subCategorySlug?: string | null };
+  if (!caption?.trim()) { res.status(400).json({ ok: false, error: "caption is required." }); return; }
+
+  try {
+    const update: any = { caption: caption.trim() };
+    if (subCategorySlug !== undefined) update.subCategorySlug = subCategorySlug ?? null;
+    const [item] = await db.update(workGalleryTable).set(update)
+      .where(and(eq(workGalleryTable.id, id), eq(workGalleryTable.sectionSlug, section)))
+      .returning();
+    if (!item) { res.status(404).json({ ok: false, error: "Item not found." }); return; }
+    res.json({ ok: true, item: { ...item, imageUrl: `/api/content-images/work-${section}/${id}` } });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to update gallery item." });
+  }
+});
+
+/** DELETE /api/work-gallery/:section/:id */
+router.delete("/work-gallery/:section/:id", async (req, res) => {
+  if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
+  const { section, id } = req.params;
+
+  try {
+    const deleted = await db.delete(workGalleryTable)
+      .where(and(eq(workGalleryTable.id, id), eq(workGalleryTable.sectionSlug, section)))
+      .returning();
+    if (!deleted.length) { res.status(404).json({ ok: false, error: "Item not found." }); return; }
+    for (const ext of ["jpg", "png", "gif", "webp"]) {
+      await deleteObject(`content-images/work-${section}/${id}.${ext}`);
+    }
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to delete gallery item." });
+  }
 });
 
 export default router;
