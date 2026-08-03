@@ -80,6 +80,26 @@ router.delete("/work-sections/:slug", async (req, res) => {
   }
 });
 
+/** PATCH /api/work-sections/:slug/sub-categories/:subSlug — admin; { label } */
+router.patch("/work-sections/:slug/sub-categories/:subSlug", async (req, res) => {
+  if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
+  const { subSlug } = req.params;
+  const { label } = req.body as { label?: string };
+  if (!label?.trim()) { res.status(400).json({ ok: false, error: "label is required." }); return; }
+
+  try {
+    const [updated] = await db
+      .update(workSubCategoriesTable)
+      .set({ label: label.trim() })
+      .where(eq(workSubCategoriesTable.slug, subSlug))
+      .returning();
+    if (!updated) { res.status(404).json({ ok: false, error: "Sub-category not found." }); return; }
+    res.json({ ok: true, subCategory: updated });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to update sub-category." });
+  }
+});
+
 /** POST /api/work-sections/:slug/sub-categories — admin; { slug, label, parentSlug? } */
 router.post("/work-sections/:slug/sub-categories", async (req, res) => {
   if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }

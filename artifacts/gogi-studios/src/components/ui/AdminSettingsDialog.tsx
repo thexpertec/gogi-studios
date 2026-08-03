@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Settings, Plus, Trash2, Save, Upload, ImageIcon, Camera, Pencil, X as XIcon } from "lucide-react";
+import { Loader2, Settings, Plus, Trash2, Save, Upload, ImageIcon, Camera, Pencil, X as XIcon, ChevronRight } from "lucide-react";
 const STATIC_LOGO = "/api/static-images/gogi-logo.png";
 import type { WorkSection, SubCategory } from "@/lib/workSections";
 import { buildTreeOrder } from "@/lib/workSections";
@@ -38,6 +38,17 @@ interface CatalogItem { id: string; name: string; }
 interface CatalogState { books: CatalogItem[]; merchandise: CatalogItem[]; projects: CatalogItem[]; }
 interface TestimonialItem { id: string; caption: string; }
 interface WorkGalleryItem { id: string; caption: string; subCategorySlug?: string | null; }
+
+/** Convert a human label to a kebab-case slug. */
+function labelToSlug(label: string): string {
+  return label
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 const SECTION_LABELS: Record<SectionType, string> = {
   books: "Books", merchandise: "Merchandise", projects: "Projects",
@@ -145,6 +156,8 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const [savingNewSub, setSavingNewSub] = useState(false);
   const [confirmDeleteSubSlug, setConfirmDeleteSubSlug] = useState<string | null>(null);
   const [newWorkSubCategory, setNewWorkSubCategory] = useState<string>("");
+  // Which section is currently expanded to show its sub-categories inline
+  const [expandedSubSection, setExpandedSubSection] = useState<string | null>(null);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -163,7 +176,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     setEditingTestiId(null); setEditTestiCaption(""); setConfirmDeleteTestiId(null);
     setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null);
     setEditingSlug(null); setEditLabel(""); setAddingNewSection(false); setNewSectionLabel("");
-    setEditingSubSlug(null); setEditSubLabel(""); setAddingSubParent(null); setNewSubLabel(""); setConfirmDeleteSubSlug(null); setNewWorkSubCategory("");
+    setEditingSubSlug(null); setEditSubLabel(""); setAddingSubParent(null); setNewSubLabel(""); setConfirmDeleteSubSlug(null); setNewWorkSubCategory(""); setExpandedSubSection(null);
 
     Promise.all([
       fetch(`${API}/settings`).then((r) => r.json()),
@@ -187,6 +200,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
         const sections: WorkSection[] = Array.isArray(sectionsData) ? sectionsData : [];
         setWorkSections(sections);
         setActiveWorkSection((prev) => sections.some((s) => s.slug === prev) ? prev : (sections[0]?.slug ?? ""));
+        setExpandedSubSection((prev) => sections.some((s) => s.slug === prev) ? prev : (sections[0]?.slug ?? null));
         // Load gallery items for each section
         const wg: Record<string, WorkGalleryItem[]> = {};
         await Promise.all(sections.map(async (s) => {
@@ -451,15 +465,18 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
 
   async function handleAddSection() {
     if (!newSectionLabel.trim()) return;
+    const slug = labelToSlug(newSectionLabel.trim());
+    if (!slug) { setError("Category name must contain at least one letter or number."); return; }
     setSavingNewSection(true); setError("");
     try {
-      const r = await fetch(`${API}/work-sections`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: newSectionLabel.trim() }) });
+      const r = await fetch(`${API}/work-sections`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, label: newSectionLabel.trim() }) });
       const data = await r.json();
       if (data.ok) {
         const updated = [...workSections, data.section];
         setWorkSections(updated);
         setWorkGalleryItems((prev) => ({ ...prev, [data.section.slug]: [] }));
         setAddingNewSection(false); setNewSectionLabel("");
+        setExpandedSubSection(data.section.slug); // auto-expand newly created section
         window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
       } else { setError(data.error ?? "Failed to add section."); }
     } catch { setError("Network error."); }
@@ -468,14 +485,14 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
 
   // Work Gallery — sub-category management
   async function handleAddSubCategory() {
-    if (!newSubLabel.trim() || !activeWorkSection) return;
+    if (!newSubLabel.trim() || !expandedSubSection) return;
     setSavingNewSub(true); setError("");
     try {
       const body = { label: newSubLabel.trim(), parentSlug: addingSubParent === "root" ? null : addingSubParent };
-      const r = await fetch(`${API}/work-sections/${activeWorkSection}/sub-categories`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await r.json();
       if (data.ok) {
-        const updated = workSections.map((s) => s.slug === activeWorkSection ? { ...s, subCategories: [...(s.subCategories ?? []), data.subCategory] } : s);
+        const updated = workSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: [...(s.subCategories ?? []), data.subCategory] } : s);
         setWorkSections(updated); setAddingSubParent(null); setNewSubLabel("");
         window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
       } else { setError(data.error ?? "Failed to add sub-category."); }
@@ -484,16 +501,16 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   }
 
   async function handleRenameSubCategory(subSlug: string) {
-    if (!editSubLabel.trim() || !activeWorkSection) { setEditingSubSlug(null); return; }
-    const sec = workSections.find((s) => s.slug === activeWorkSection);
+    if (!editSubLabel.trim() || !expandedSubSection) { setEditingSubSlug(null); return; }
+    const sec = workSections.find((s) => s.slug === expandedSubSection);
     const current = sec?.subCategories?.find((s) => s.slug === subSlug);
     if (editSubLabel.trim() === current?.label) { setEditingSubSlug(null); return; }
     setSavingSubEdit(true); setError("");
     try {
-      const r = await fetch(`${API}/work-sections/${activeWorkSection}/sub-categories/${subSlug}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: editSubLabel.trim() }) });
+      const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories/${subSlug}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: editSubLabel.trim() }) });
       const data = await r.json();
       if (data.ok) {
-        const updated = workSections.map((s) => s.slug === activeWorkSection ? { ...s, subCategories: (s.subCategories ?? []).map((sub) => sub.slug === subSlug ? { ...sub, label: editSubLabel.trim() } : sub) } : s);
+        const updated = workSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).map((sub) => sub.slug === subSlug ? { ...sub, label: editSubLabel.trim() } : sub) } : s);
         setWorkSections(updated); setEditingSubSlug(null);
         window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
       } else { setError(data.error ?? "Failed to rename sub-category."); }
@@ -502,19 +519,19 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   }
 
   async function handleDeleteSubCategory(subSlug: string) {
-    if (!activeWorkSection) return;
+    if (!expandedSubSection) return;
     setError("");
     try {
-      const r = await fetch(`${API}/work-sections/${activeWorkSection}/sub-categories/${subSlug}`, { method: "DELETE", credentials: "include" });
+      const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories/${subSlug}`, { method: "DELETE", credentials: "include" });
       const data = await r.json();
       if (data.ok) {
         const deletedSlugs = new Set<string>(data.deleted ?? [subSlug]);
-        const updated = workSections.map((s) => s.slug === activeWorkSection ? { ...s, subCategories: (s.subCategories ?? []).filter((sub) => !deletedSlugs.has(sub.slug)) } : s);
+        const updated = workSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).filter((sub) => !deletedSlugs.has(sub.slug)) } : s);
         setWorkSections(updated); setConfirmDeleteSubSlug(null);
-        const sectionItems = (workGalleryItems[activeWorkSection] ?? []).map((item) =>
+        const sectionItems = (workGalleryItems[expandedSubSection] ?? []).map((item) =>
           item.subCategorySlug && deletedSlugs.has(item.subCategorySlug) ? { ...item, subCategorySlug: null } : item
         );
-        setWorkGalleryItems((prev) => ({ ...prev, [activeWorkSection]: sectionItems }));
+        setWorkGalleryItems((prev) => ({ ...prev, [expandedSubSection]: sectionItems }));
         window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workSections: updated } }));
       } else { setError(data.error ?? "Failed to delete sub-category."); }
     } catch { setError("Network error."); }
@@ -606,12 +623,16 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const isActionTab = activeTab === "logo" || activeTab === "images" || activeTab === "testimonials" || activeTab === "workgallery";
   const SECTION_TYPES: SectionType[] = ["books", "merchandise", "projects"];
 
-  // Derived: active section sub-category tree
+  // Derived: active section for image-upload sub-category selector
   const activeSection = workSections.find((s) => s.slug === activeWorkSection);
   const activeSubCategories: SubCategory[] = activeSection?.subCategories ?? [];
   const activeTreeNodes = buildTreeOrder(activeSubCategories);
+
+  // Derived: expanded section for inline sub-category management
+  const expandedSectionData = workSections.find((s) => s.slug === expandedSubSection);
+  const expandedTreeNodes = buildTreeOrder(expandedSectionData?.subCategories ?? []);
   const addSubFormDepth = addingSubParent === "root" ? 0
-    : (activeTreeNodes.find((n) => n.node.slug === addingSubParent)?.depth ?? 0) + 1;
+    : (expandedTreeNodes.find((n) => n.node.slug === addingSubParent)?.depth ?? 0) + 1;
 
   const isBusy = saving || logoUploading || !!uploadingImage || addingSaving || savingTestimonial || savingWorkItem || !!uploadingWorkKey || savingEditSection || savingNewSection || savingSubEdit || savingNewSub || savingCatalogEdit || deletingCatalogItem || savingTestiEdit || deletingTesti;
 
@@ -935,7 +956,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
               <div className="flex flex-col gap-4">
                 <p className="text-sm text-muted-foreground">Manage your work categories and upload images to each one.</p>
 
-                {/* ── Section manager ── */}
+                {/* ── Section manager with inline sub-categories ── */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Work Categories</p>
@@ -946,37 +967,151 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                       </button>
                     )}
                   </div>
+
                   <div className="flex flex-col gap-1.5">
-                    {workSections.map((s) => (
-                      <div key={s.slug} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background">
-                        {editingSlug === s.slug ? (
-                          <>
-                            <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} autoFocus
-                              className="flex-1 h-8 rounded-lg border border-input bg-muted/40 px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSection(s.slug); } if (e.key === "Escape") setEditingSlug(null); }} />
-                            <Button type="button" size="sm" onClick={() => handleRenameSection(s.slug)} disabled={savingEditSection || !editLabel.trim()}
-                              className="rounded-full h-7 px-3 text-xs shrink-0">
-                              {savingEditSection ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
-                            </Button>
-                            <button type="button" onClick={() => setEditingSlug(null)} className="p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                              <XIcon className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flex-1 text-sm text-foreground">{s.label}</span>
-                            <button type="button" onClick={() => { setEditingSlug(s.slug); setEditLabel(s.label); setAddingNewSection(false); }}
-                              className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0" title="Rename">
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button type="button" onClick={() => handleDeleteSection(s.slug)}
-                              className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0" title="Delete">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    ))}
+                    {workSections.map((s) => {
+                      const isExpanded = expandedSubSection === s.slug;
+                      const sectionTree = buildTreeOrder(s.subCategories ?? []);
+                      return (
+                        <div key={s.slug} className="rounded-xl border border-border overflow-hidden">
+                          {/* ── Category header row ── */}
+                          <div className="flex items-center gap-2 px-3 py-2 bg-background">
+                            {editingSlug === s.slug ? (
+                              <>
+                                <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} autoFocus
+                                  className="flex-1 h-8 rounded-lg border border-input bg-muted/40 px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSection(s.slug); } if (e.key === "Escape") setEditingSlug(null); }} />
+                                <Button type="button" size="sm" onClick={() => handleRenameSection(s.slug)} disabled={savingEditSection || !editLabel.trim()}
+                                  className="rounded-full h-7 px-3 text-xs shrink-0">
+                                  {savingEditSection ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                                </Button>
+                                <button type="button" onClick={() => setEditingSlug(null)} className="p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                                  <XIcon className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {/* Expand toggle — also selects section for sub-cat mgmt */}
+                                <button type="button"
+                                  onClick={() => {
+                                    const next = isExpanded ? null : s.slug;
+                                    setExpandedSubSection(next);
+                                    setAddingSubParent(null); setNewSubLabel(""); setEditingSubSlug(null); setConfirmDeleteSubSlug(null);
+                                  }}
+                                  className="flex items-center gap-2 flex-1 text-left group">
+                                  <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-muted-foreground/50 transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`} />
+                                  <span className="text-sm text-foreground group-hover:text-primary transition-colors">{s.label}</span>
+                                  {(s.subCategories ?? []).length > 0 && (
+                                    <span className="ml-1 text-[10px] text-muted-foreground/50">
+                                      {(s.subCategories ?? []).length} sub
+                                    </span>
+                                  )}
+                                </button>
+                                <button type="button" onClick={() => { setEditingSlug(s.slug); setEditLabel(s.label); setAddingNewSection(false); }}
+                                  className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0" title="Rename">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button type="button" onClick={() => handleDeleteSection(s.slug)}
+                                  className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0" title="Delete">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* ── Inline sub-categories (visible when expanded) ── */}
+                          {isExpanded && (
+                            <div className="border-t border-border/60 bg-muted/20 px-3 py-2.5 flex flex-col gap-1">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                                  Sub-categories — appear as flyout in nav
+                                </p>
+                                {addingSubParent === null && (
+                                  <button type="button"
+                                    onClick={() => { setAddingSubParent("root"); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
+                                    <Plus className="w-3 h-3" /> Add
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Sub-category rows */}
+                              {sectionTree.map(({ node, depth }) => (
+                                <div key={node.slug} style={{ marginLeft: `${depth * 14}px` }}
+                                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 bg-background text-xs">
+                                  {editingSubSlug === node.slug ? (
+                                    <>
+                                      <input value={editSubLabel} onChange={(e) => setEditSubLabel(e.target.value)} autoFocus
+                                        className="flex-1 h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSubCategory(node.slug); } if (e.key === "Escape") setEditingSubSlug(null); }} />
+                                      <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
+                                        className="h-6 px-2 text-xs rounded-full shrink-0">
+                                        {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
+                                      </Button>
+                                      <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
+                                        <XIcon className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  ) : confirmDeleteSubSlug === node.slug ? (
+                                    <>
+                                      <span className="flex-1 text-destructive truncate">Delete with all children?</span>
+                                      <button type="button" onClick={() => handleDeleteSubCategory(node.slug)} className="text-destructive font-medium hover:underline shrink-0">Yes</button>
+                                      <button type="button" onClick={() => setConfirmDeleteSubSlug(null)} className="text-muted-foreground hover:text-foreground shrink-0 ml-1">No</button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/30 shrink-0" />
+                                      <span className="flex-1 truncate">{node.label}</span>
+                                      <button type="button" title="Add child sub-category" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                                        className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
+                                        <Plus className="w-3 h-3" />
+                                      </button>
+                                      <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
+                                        className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                      <button type="button" title="Delete" onClick={() => {
+                                          const hasChildren = (s.subCategories ?? []).some((sc) => sc.parentSlug === node.slug);
+                                          if (hasChildren) setConfirmDeleteSubSlug(node.slug);
+                                          else handleDeleteSubCategory(node.slug);
+                                        }}
+                                        className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+
+                              {sectionTree.length === 0 && addingSubParent === null && (
+                                <p className="text-xs text-muted-foreground/60 text-center py-1.5">
+                                  No sub-categories yet. Click "+ Add" to create one.
+                                </p>
+                              )}
+
+                              {/* Add sub-category form */}
+                              {addingSubParent !== null && (
+                                <div style={{ marginLeft: `${addSubFormDepth * 14}px` }}
+                                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-primary/40 bg-primary/5">
+                                  <input value={newSubLabel} onChange={(e) => setNewSubLabel(e.target.value)} autoFocus placeholder="Sub-category name"
+                                    className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSubCategory(); } if (e.key === "Escape") { setAddingSubParent(null); setNewSubLabel(""); } }} />
+                                  <Button type="button" size="sm" onClick={handleAddSubCategory} disabled={savingNewSub || !newSubLabel.trim()}
+                                    className="h-6 px-2 text-xs rounded-full shrink-0">
+                                    {savingNewSub ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Add"}
+                                  </Button>
+                                  <button type="button" onClick={() => { setAddingSubParent(null); setNewSubLabel(""); }}
+                                    className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
+                                    <XIcon className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
                     {workSections.length === 0 && !addingNewSection && (
                       <p className="text-sm text-muted-foreground text-center py-3">No categories yet. Click "Add Category" to create one.</p>
                     )}
@@ -1003,100 +1138,19 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                   <>
                     <div className="h-px bg-border" />
 
-                    {/* Section selector */}
+                    {/* Section selector for image uploads */}
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Upload Images</p>
                       <div className="flex flex-wrap gap-1.5">
                         {workSections.map((s) => (
                           <button key={s.slug} type="button"
-                            onClick={() => { setActiveWorkSection(s.slug); setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); setAddingSubParent(null); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                            onClick={() => { setActiveWorkSection(s.slug); setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); }}
                             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${activeWorkSection === s.slug ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}>
                             {s.label}
                           </button>
                         ))}
                       </div>
                     </div>
-
-                    {/* Sub-category tree for active section */}
-                    {activeWorkSection && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sub-categories</p>
-                          {addingSubParent === null && (
-                            <button type="button" onClick={() => { setAddingSubParent("root"); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
-                              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
-                              <Plus className="w-3 h-3" /> Add
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          {activeTreeNodes.map(({ node, depth }) => (
-                            <div key={node.slug} style={{ marginLeft: `${depth * 14}px` }}
-                              className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border bg-background text-xs">
-                              {editingSubSlug === node.slug ? (
-                                <>
-                                  <input value={editSubLabel} onChange={(e) => setEditSubLabel(e.target.value)} autoFocus
-                                    className="flex-1 h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSubCategory(node.slug); } if (e.key === "Escape") setEditingSubSlug(null); }} />
-                                  <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
-                                    className="h-6 px-2 text-xs rounded-full shrink-0">
-                                    {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
-                                  </Button>
-                                  <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
-                                    <XIcon className="w-3 h-3" />
-                                  </button>
-                                </>
-                              ) : confirmDeleteSubSlug === node.slug ? (
-                                <>
-                                  <span className="flex-1 text-destructive truncate">Delete with all children?</span>
-                                  <button type="button" onClick={() => handleDeleteSubCategory(node.slug)} className="text-destructive font-medium hover:underline shrink-0">Yes</button>
-                                  <button type="button" onClick={() => setConfirmDeleteSubSlug(null)} className="text-muted-foreground hover:text-foreground shrink-0 ml-1">No</button>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="flex-1 truncate">{node.label}</span>
-                                  <button type="button" title="Add child" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
-                                    className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
-                                    <Plus className="w-3 h-3" />
-                                  </button>
-                                  <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
-                                    className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0">
-                                    <Pencil className="w-3 h-3" />
-                                  </button>
-                                  <button type="button" title="Delete" onClick={() => {
-                                      const hasChildren = activeSubCategories.some((s) => s.parentSlug === node.slug);
-                                      if (hasChildren) setConfirmDeleteSubSlug(node.slug);
-                                      else handleDeleteSubCategory(node.slug);
-                                    }}
-                                    className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          ))}
-                          {activeTreeNodes.length === 0 && addingSubParent === null && (
-                            <p className="text-xs text-muted-foreground text-center py-2">No sub-categories yet. Click "+ Add" to create one.</p>
-                          )}
-                          {addingSubParent !== null && (
-                            <div style={{ marginLeft: `${addSubFormDepth * 14}px` }}
-                              className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-primary/40 bg-primary/5">
-                              <input value={newSubLabel} onChange={(e) => setNewSubLabel(e.target.value)} autoFocus placeholder="Sub-category name"
-                                className="flex-1 h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
-                                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSubCategory(); } if (e.key === "Escape") { setAddingSubParent(null); setNewSubLabel(""); } }} />
-                              <Button type="button" size="sm" onClick={handleAddSubCategory} disabled={savingNewSub || !newSubLabel.trim()}
-                                className="h-6 px-2 text-xs rounded-full shrink-0">
-                                {savingNewSub ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Add"}
-                              </Button>
-                              <button type="button" onClick={() => { setAddingSubParent(null); setNewSubLabel(""); }}
-                                className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
-                                <XIcon className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Items for selected section */}
                     {activeWorkSection && (
