@@ -40,25 +40,30 @@ export default function WorkGalleryPage({ slug = "" }: Props) {
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
   // Flash the target section when navigating to a hash anchor
+  function flashSection(hash: string) {
+    if (!hash) return;
+    const id = hash.replace(/^#/, "");
+    // Small delay lets the browser finish the smooth-scroll before animating
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove("section-highlight");
+      void el.offsetWidth; // force reflow so re-triggering works
+      el.classList.add("section-highlight");
+      const cleanup = () => el.classList.remove("section-highlight");
+      el.addEventListener("animationend", cleanup, { once: true });
+    }, 100);
+  }
+
+  // Fire flash once data has loaded (sections are now in the DOM)
   useEffect(() => {
-    function flashSection(hash: string) {
-      if (!hash) return;
-      const id = hash.replace(/^#/, "");
-      // Wait for scroll to settle before applying the class
-      setTimeout(() => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.remove("section-highlight");
-        // Force a reflow so re-triggering the animation works
-        void el.offsetWidth;
-        el.classList.add("section-highlight");
-        const cleanup = () => el.classList.remove("section-highlight");
-        el.addEventListener("animationend", cleanup, { once: true });
-      }, 320);
+    if (!loading) {
+      flashSection(window.location.hash);
     }
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    flashSection(window.location.hash);
-
+  // Also fire on in-page hash changes (same section, different sub-cat)
+  useEffect(() => {
     function onHashChange() { flashSection(window.location.hash); }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
