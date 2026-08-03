@@ -57,8 +57,13 @@ router.put("/settings", async (req, res) => {
     if (typeof body.copyrightText     === "string") update.copyrightText     = body.copyrightText;
     if (typeof body.email             === "string") update.email             = body.email;
 
-    const updated = await db.update(settingsTable).set(update).where(eq(settingsTable.id, 1)).returning();
-    res.json({ ok: true, settings: updated[0] });
+    // UPSERT: create the row if it doesn't exist yet, otherwise update it.
+    await db
+      .insert(settingsTable)
+      .values({ id: 1, ...update })
+      .onConflictDoUpdate({ target: settingsTable.id, set: update });
+    const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
+    res.json({ ok: true, settings: rows[0] });
   } catch {
     res.status(500).json({ ok: false, error: "Failed to save settings." });
   }
