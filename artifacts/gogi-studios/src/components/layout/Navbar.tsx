@@ -135,56 +135,62 @@ export function Navbar() {
             </button>
 
             {workOpen && (
+              // pt-3 extends the hover area over the visual gap so the mouse
+              // never leaves the element boundary while crossing to the panel.
               <div
-                className="absolute top-full left-1/2 -translate-x-1/2 mt-3 flex z-50 shadow-xl"
-                style={{ filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.12))" }}
+                className="absolute top-full left-1/2 -translate-x-1/2 pt-3 z-50"
                 onMouseEnter={openWork}
                 onMouseLeave={closeWork}
               >
-                {/* Left panel — top-level sections */}
-                <div className="w-64 bg-background border border-border rounded-2xl py-2 shrink-0">
-                  {workSections.map((s) => {
-                    const hasSubCats = (s.subCategories ?? []).length > 0;
-                    const isActive = activeSection === s.slug;
-                    return (
-                      <div
-                        key={s.slug}
-                        onPointerEnter={() => onSectionHover(s.slug, hasSubCats)}
-                        className={`flex items-center justify-between px-4 py-2.5 rounded-lg mx-1 cursor-pointer transition-colors group ${isActive ? "bg-muted" : "hover:bg-muted"}`}
-                      >
-                        <Link
-                          href={`/work/${s.slug}`}
-                          className={`flex-1 text-sm leading-snug transition-colors group-hover:text-primary ${isActive ? "text-primary font-medium" : location === `/work/${s.slug}` ? "text-primary font-medium" : "text-muted-foreground"}`}
+                <div
+                  className="flex shadow-xl"
+                  style={{ filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.12))" }}
+                >
+                  {/* Left panel — top-level sections */}
+                  <div className="w-64 bg-background border border-border rounded-2xl py-2 shrink-0">
+                    {workSections.map((s) => {
+                      const hasSubCats = (s.subCategories ?? []).length > 0;
+                      const isActive = activeSection === s.slug;
+                      return (
+                        <div
+                          key={s.slug}
+                          onPointerEnter={() => onSectionHover(s.slug, hasSubCats)}
+                          className={`flex items-center justify-between px-4 py-2.5 rounded-lg mx-1 cursor-pointer transition-colors group ${isActive ? "bg-muted" : "hover:bg-muted"}`}
                         >
-                          {s.label}
-                        </Link>
-                        {hasSubCats && (
-                          <ChevronRight className={`w-3.5 h-3.5 shrink-0 ml-2 transition-colors ${isActive ? "text-primary" : "text-muted-foreground/50 group-hover:text-primary/60"}`} />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Right flyout panel — sub-categories */}
-                {activeSectionData && (activeSectionData.subCategories ?? []).length > 0 && (
-                  <div className="w-56 bg-background border border-border rounded-2xl py-2 ml-2 shrink-0">
-                    <p className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      {activeSectionData.label}
-                    </p>
-                    <div className="h-px bg-border mx-3 my-1" />
-                    {buildTreeOrder(activeSectionData.subCategories).map(({ node, depth }) => (
-                      <Link
-                        key={node.slug}
-                        href={`/work/${activeSectionData.slug}#${node.slug}`}
-                        style={{ paddingLeft: `${(depth + 1) * 16}px` }}
-                        className={`block py-2 pr-4 text-sm transition-colors hover:bg-muted hover:text-primary leading-snug text-muted-foreground`}
-                      >
-                        {node.label}
-                      </Link>
-                    ))}
+                          <Link
+                            href={`/work/${s.slug}`}
+                            className={`flex-1 text-sm leading-snug transition-colors group-hover:text-primary ${isActive ? "text-primary font-medium" : location === `/work/${s.slug}` ? "text-primary font-medium" : "text-muted-foreground"}`}
+                          >
+                            {s.label}
+                          </Link>
+                          {hasSubCats && (
+                            <ChevronRight className={`w-3.5 h-3.5 shrink-0 ml-2 transition-colors ${isActive ? "text-primary" : "text-muted-foreground/50 group-hover:text-primary/60"}`} />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
+
+                  {/* Right flyout panel — sub-categories */}
+                  {activeSectionData && (activeSectionData.subCategories ?? []).length > 0 && (
+                    <div className="w-56 bg-background border border-border rounded-2xl py-2 ml-2 shrink-0">
+                      <p className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                        {activeSectionData.label}
+                      </p>
+                      <div className="h-px bg-border mx-3 my-1" />
+                      {buildTreeOrder(activeSectionData.subCategories).map(({ node, depth }) => (
+                        <Link
+                          key={node.slug}
+                          href={`/work/${activeSectionData.slug}#${node.slug}`}
+                          style={{ paddingLeft: `${(depth + 1) * 16}px` }}
+                          className={`block py-2 pr-4 text-sm transition-colors hover:bg-muted hover:text-primary leading-snug text-muted-foreground`}
+                        >
+                          {node.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
