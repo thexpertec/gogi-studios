@@ -103,7 +103,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const [links, setLinks] = useState<SocialLink[]>([]);
 
   // Navigation links
-  const [navLinks, setNavLinks] = useState<NavLinkItem[]>([]);
+  const [navLinks, setNavLinks] = useState<NavLinkItem[]>(DEFAULT_NAV_LINKS);
 
   // Logo
   const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
