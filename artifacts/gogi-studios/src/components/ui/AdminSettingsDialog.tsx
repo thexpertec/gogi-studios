@@ -1119,44 +1119,84 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                   Media (Images &amp; Videos)
                                 </p>
 
-                                {(workGalleryItems[s.slug] ?? []).length === 0 && !(activeWorkSection === s.slug && addingWorkItem) && (
-                                  <p className="text-xs text-muted-foreground/60 text-center py-1.5">No items yet. Click "+ Add" below.</p>
-                                )}
+                                {/* ── Gallery items grouped by sub-category ── */}
+                                {(() => {
+                                  const allItems = workGalleryItems[s.slug] ?? [];
+                                  const hasSubs = sectionTree.length > 0;
 
-                                {(workGalleryItems[s.slug] ?? []).map((item) => {
-                                  const isVideo = item.mediaType === "video";
-                                  const imgKey = `work-${s.slug}/${item.id}`;
-                                  const imgUrl = isVideo ? null : contentImages[imgKey];
-                                  const isUploading = uploadingWorkKey === imgKey;
-                                  return (
-                                    <div key={item.id} className="flex items-start gap-3 p-2.5 rounded-xl border border-border/60 bg-background hover:border-primary/30 transition-colors group">
-                                      {isVideo ? (
-                                        <div className="w-14 h-14 rounded-lg border border-border bg-violet-50 dark:bg-violet-950/30 flex flex-col items-center justify-center shrink-0 gap-0.5">
-                                          <svg className="w-5 h-5 text-violet-500" viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18a1 1 0 0 0 0-1.69L9.54 5.98A1 1 0 0 0 8 6.82Z"/></svg>
-                                          <span className="text-[9px] font-semibold text-violet-500 uppercase tracking-wide">Video</span>
-                                        </div>
-                                      ) : (
-                                        <button type="button" onClick={() => triggerWorkImageUpload(s.slug, item.id)} disabled={!!uploadingWorkKey}
-                                          className="w-14 h-14 rounded-lg border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 relative">
-                                          {isUploading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : imgUrl ? (
-                                            <><img src={imgUrl} alt={item.caption} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-3 h-3 text-white" /></div></>
-                                          ) : (
-                                            <><ImageIcon className="w-4 h-4 text-muted-foreground/40" /><div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg"><Camera className="w-3 h-3 text-primary" /></div></>
-                                          )}
-                                        </button>
-                                      )}
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-foreground line-clamp-2 mb-1">{item.caption}</p>
+                                  if (allItems.length === 0 && !(activeWorkSection === s.slug && addingWorkItem)) {
+                                    return <p className="text-xs text-muted-foreground/60 text-center py-1.5">No items yet. Click "+ Add" below.</p>;
+                                  }
+
+                                  const renderItem = (item: WorkGalleryItem) => {
+                                    const isVideo = item.mediaType === "video";
+                                    const imgKey = `work-${s.slug}/${item.id}`;
+                                    const imgUrl = isVideo ? null : contentImages[imgKey];
+                                    const isUploading = uploadingWorkKey === imgKey;
+                                    return (
+                                      <div key={item.id} className="flex items-start gap-3 p-2.5 rounded-xl border border-border/60 bg-background hover:border-primary/30 transition-colors group">
                                         {isVideo ? (
-                                          <p className="text-xs text-muted-foreground/60 truncate">{item.videoUrl}</p>
+                                          <div className="w-14 h-14 rounded-lg border border-border bg-violet-50 dark:bg-violet-950/30 flex flex-col items-center justify-center shrink-0 gap-0.5">
+                                            <svg className="w-5 h-5 text-violet-500" viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18a1 1 0 0 0 0-1.69L9.54 5.98A1 1 0 0 0 8 6.82Z"/></svg>
+                                            <span className="text-[9px] font-semibold text-violet-500 uppercase tracking-wide">Video</span>
+                                          </div>
                                         ) : (
                                           <button type="button" onClick={() => triggerWorkImageUpload(s.slug, item.id)} disabled={!!uploadingWorkKey}
-                                            className="text-xs text-muted-foreground hover:text-primary transition-colors">{imgUrl ? "Replace image" : "Upload image"}</button>
+                                            className="w-14 h-14 rounded-lg border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 relative">
+                                            {isUploading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : imgUrl ? (
+                                              <><img src={imgUrl} alt={item.caption} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-3 h-3 text-white" /></div></>
+                                            ) : (
+                                              <><ImageIcon className="w-4 h-4 text-muted-foreground/40" /><div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg"><Camera className="w-3 h-3 text-primary" /></div></>
+                                            )}
+                                          </button>
                                         )}
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-xs font-medium text-foreground line-clamp-2 mb-1">{item.caption}</p>
+                                          {isVideo ? (
+                                            <p className="text-xs text-muted-foreground/60 truncate">{item.videoUrl}</p>
+                                          ) : (
+                                            <button type="button" onClick={() => triggerWorkImageUpload(s.slug, item.id)} disabled={!!uploadingWorkKey}
+                                              className="text-xs text-muted-foreground hover:text-primary transition-colors">{imgUrl ? "Replace image" : "Upload image"}</button>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
+                                    );
+                                  };
+
+                                  const uncategorised = allItems.filter((item) => !item.subCategorySlug);
+                                  const subGroups = sectionTree
+                                    .map(({ node }) => ({
+                                      slug: node.slug,
+                                      label: node.label,
+                                      items: allItems.filter((item) => item.subCategorySlug === node.slug),
+                                    }))
+                                    .filter((g) => g.items.length > 0);
+
+                                  return (
+                                    <>
+                                      {/* Uncategorised items — labelled only when sub-categories also exist */}
+                                      {hasSubs && uncategorised.length > 0 && (
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/50">General</span>
+                                          <div className="flex-1 h-px bg-border/40" />
+                                        </div>
+                                      )}
+                                      {uncategorised.map(renderItem)}
+
+                                      {/* Sub-category groups */}
+                                      {subGroups.map(({ slug, label, items }) => (
+                                        <div key={slug} className="flex flex-col gap-1.5 mt-1.5">
+                                          <div className="flex items-center gap-1.5">
+                                            <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/40 shrink-0" />
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate">{label}</span>
+                                            <div className="flex-1 h-px bg-border/40" />
+                                          </div>
+                                          {items.map(renderItem)}
+                                        </div>
+                                      ))}
+                                    </>
                                   );
-                                })}
+                                })()}
 
                                 {/* Add media form — shown only inside the expanded (active) section */}
                                 {activeWorkSection === s.slug && addingWorkItem ? (
