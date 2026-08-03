@@ -195,7 +195,11 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       fetch(`${API}/settings`).then((r) => r.json()),
       fetch(`${API}/logo`).then((r) => (r.ok ? `${API}/logo?t=${Date.now()}` : null)).catch(() => null),
       fetch(`${API}/content-images`).then((r) => r.json()).catch(() => ({})),
-      fetch(`${API}/catalog`).then((r) => r.json()).catch(() => ({ books: [], merchandise: [], projects: [] })),
+      Promise.all([
+        fetch(`${API}/catalog/books`).then((r) => r.json()).catch(() => ({ items: [] })),
+        fetch(`${API}/catalog/merchandise`).then((r) => r.json()).catch(() => ({ items: [] })),
+        fetch(`${API}/catalog/projects`).then((r) => r.json()).catch(() => ({ items: [] })),
+      ]).then(([b, m, p]) => ({ books: b.items ?? [], merchandise: m.items ?? [], projects: p.items ?? [] })),
       fetch(`${API}/testimonials`).then((r) => r.json()).catch(() => ({ items: [] })),
       fetch(`${API}/work-sections?domain=all`).then((r) => r.json()).catch(() => []),
     ])

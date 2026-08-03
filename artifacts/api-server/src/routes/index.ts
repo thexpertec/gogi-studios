@@ -8,12 +8,14 @@ import testimonialsRouter from "./testimonials";
 import workGalleryRouter from "./workGallery";
 import workSectionsRouter from "./workSections";
 import staticImagesRouter from "./staticImages";
+import logoRouter from "./logo";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(settingsRouter);
+router.use(logoRouter);
 router.use(contentImagesRouter);
 router.use(catalogRouter);
 router.use(testimonialsRouter);
