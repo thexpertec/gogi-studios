@@ -7,6 +7,7 @@ import catalogRouter from "./catalog";
 import testimonialsRouter from "./testimonials";
 import workGalleryRouter from "./workGallery";
 import workSectionsRouter from "./workSections";
+import staticImagesRouter from "./staticImages";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(catalogRouter);
 router.use(testimonialsRouter);
 router.use(workGalleryRouter);
 router.use(workSectionsRouter);
+router.use(staticImagesRouter);
 
 export default router;

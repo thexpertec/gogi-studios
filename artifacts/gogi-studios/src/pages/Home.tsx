@@ -1,9 +1,9 @@
 import { PageTransition } from "@/components/layout/PageTransition";
 import { blogPosts, services, clientSegments } from "@/lib/data";
-import gogiBanner from "@assets/gogi-banner.jpg";
-import nigarAward from "@assets/nigar-event-6.jpg";
-import nigarSelfie from "@assets/image_1785184592255.png";
-import nigarHome from "@assets/nigar-event-2.jpg";
+const gogiBanner = "/api/static-images/gogi-banner.jpg";
+const nigarAward = "/api/static-images/nigar-event-6.jpg";
+const nigarSelfie = "/api/static-images/image_1785184592255.png";
+const nigarHome = "/api/static-images/nigar-event-2.jpg";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle, Star } from "lucide-react";

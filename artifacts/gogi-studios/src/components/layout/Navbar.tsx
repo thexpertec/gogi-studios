@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
-import gogiLogo from "@assets/gogi-logo.png";
+const STATIC_LOGO = "/api/static-images/gogi-logo.png";
 import { ChevronDown, ChevronRight, Menu, X } from "lucide-react";
 import type { WorkSection } from "@/lib/workSections";
 import { buildTreeOrder } from "@/lib/workSections";
@@ -103,7 +103,7 @@ export function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group shrink-0" data-testid="link-home-logo">
           <img
-            src={logoUrl ?? gogiLogo}
+            src={logoUrl ?? STATIC_LOGO}
             alt={companyName}
             className="h-12 w-auto object-contain transition-transform group-hover:scale-105"
             onError={() => setLogoUrl(null)}

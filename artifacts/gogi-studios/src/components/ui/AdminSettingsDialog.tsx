@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Settings, Plus, Trash2, Save, Upload, ImageIcon, Camera, Pencil, X as XIcon } from "lucide-react";
-import gogiLogo from "@assets/gogi-logo.png";
+const STATIC_LOGO = "/api/static-images/gogi-logo.png";
 import type { WorkSection, SubCategory } from "@/lib/workSections";
 import { buildTreeOrder } from "@/lib/workSections";
 
@@ -658,7 +658,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Current logo</p>
                   <div className="w-24 h-24 border border-border rounded-xl flex items-center justify-center bg-muted/30 overflow-hidden p-2">
-                    {currentLogoUrl ? <img src={currentLogoUrl} alt="Current logo" className="max-w-full max-h-full object-contain" onError={() => setCurrentLogoUrl(null)} /> : <img src={gogiLogo} alt="Default logo" className="max-w-full max-h-full object-contain" />}
+                    {currentLogoUrl ? <img src={currentLogoUrl} alt="Current logo" className="max-w-full max-h-full object-contain" onError={() => setCurrentLogoUrl(null)} /> : <img src={STATIC_LOGO} alt="Default logo" className="max-w-full max-h-full object-contain" />}
                   </div>
                 </div>
                 <div>
