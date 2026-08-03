@@ -833,7 +833,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                         <select value={link.platform} onChange={(e) => updateLink(i, "platform", e.target.value)} className="h-9 rounded-lg border border-input bg-background px-2 text-sm w-36 shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/30">
                           {PLATFORM_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                         </select>
-                        <input type="url" placeholder="https://…" value={link.url} onChange={(e) => updateLink(i, "url", e.target.value)} className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                        <input type="text" placeholder="https://…" value={link.url} onChange={(e) => updateLink(i, "url", e.target.value)} className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
                         <button type="button" onClick={() => removeLink(i)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     ))}
