@@ -8,11 +8,22 @@ import { buildTreeOrder } from "@/lib/workSections";
 
 const API = "/api";
 
+interface NavLink { label: string; href: string; }
+
+const DEFAULT_NAV_LINKS: NavLink[] = [
+  { href: "/services",     label: "Services" },
+  { href: "/awards",       label: "Awards" },
+  { href: "/blog",         label: "News" },
+  { href: "/books",        label: "Books" },
+  { href: "/merchandise",  label: "Shop" },
+];
+
 export function Navbar() {
   const [location] = useLocation();
   const [companyName, setCompanyName] = useState("Gogi Studios");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [workSections, setWorkSections] = useState<WorkSection[]>([]);
+  const [navLinks, setNavLinks] = useState<NavLink[]>(DEFAULT_NAV_LINKS);
   const [workOpen, setWorkOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -26,7 +37,10 @@ export function Navbar() {
   useEffect(() => {
     fetch(`${API}/settings`)
       .then((r) => r.json())
-      .then((data) => { if (data.companyName) setCompanyName(data.companyName); })
+      .then((data) => {
+        if (data.companyName) setCompanyName(data.companyName);
+        if (Array.isArray(data.navLinks) && data.navLinks.length > 0) setNavLinks(data.navLinks);
+      })
       .catch(() => {});
 
     fetch(`${API}/logo`)
@@ -43,6 +57,7 @@ export function Navbar() {
       if (detail?.companyName) setCompanyName(detail.companyName);
       if (detail?.logoUpdated && detail?.logoUrl) setLogoUrl(detail.logoUrl);
       if (Array.isArray(detail?.workSections)) setWorkSections(detail.workSections);
+      if (Array.isArray(detail?.navLinks)) setNavLinks(detail.navLinks.length > 0 ? detail.navLinks : DEFAULT_NAV_LINKS);
     }
     window.addEventListener("settings-updated", onSettingsUpdated);
     return () => window.removeEventListener("settings-updated", onSettingsUpdated);
@@ -97,13 +112,8 @@ export function Navbar() {
     ? workSections.find((s) => s.slug === activeSection) ?? null
     : null;
 
-  const staticLinks = [
-    { href: "/services",     label: "Services" },
-    { href: "/awards",       label: "Awards" },
-    { href: "/blog",         label: "News" },
-    { href: "/books",        label: "Books" },
-    { href: "/merchandise",  label: "Shop" },
-  ];
+  const staticLinks = navLinks;
+  const firstLink = staticLinks[0];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-md border-b border-border">
@@ -124,13 +134,15 @@ export function Navbar() {
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-7 flex-1 justify-center">
-          <Link
-            href="/services"
-            data-testid="nav-link-services"
-            className={`text-sm font-medium transition-colors hover:text-primary ${location === "/services" ? "text-primary font-semibold" : "text-muted-foreground"}`}
-          >
-            Services
-          </Link>
+          {firstLink && (
+            <Link
+              href={firstLink.href}
+              data-testid="nav-link-first"
+              className={`text-sm font-medium transition-colors hover:text-primary ${location === firstLink.href ? "text-primary font-semibold" : "text-muted-foreground"}`}
+            >
+              {firstLink.label}
+            </Link>
+          )}
 
           {/* Work dropdown with flyout */}
           <div ref={workRef} className="relative" onMouseEnter={openWork} onMouseLeave={closeWork}>
@@ -241,12 +253,14 @@ export function Navbar() {
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-background/95 backdrop-blur-md px-4 pb-5 pt-2">
           <nav className="flex flex-col">
-            <Link
-              href="/services"
-              className={`py-3 text-sm font-medium border-b border-border/50 transition-colors hover:text-primary ${location === "/services" ? "text-primary" : "text-foreground"}`}
-            >
-              Services
-            </Link>
+            {firstLink && (
+              <Link
+                href={firstLink.href}
+                className={`py-3 text-sm font-medium border-b border-border/50 transition-colors hover:text-primary ${location === firstLink.href ? "text-primary" : "text-foreground"}`}
+              >
+                {firstLink.label}
+              </Link>
+            )}
 
             <div className="border-b border-border/50">
               <button

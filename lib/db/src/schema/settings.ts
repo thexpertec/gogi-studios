@@ -1,6 +1,7 @@
 import { pgTable, serial, text, jsonb } from "drizzle-orm/pg-core";
 
 export interface SocialLink { platform: string; url: string; }
+export interface NavLink { label: string; href: string; }
 
 export const settingsTable = pgTable("settings", {
   id:                serial("id").primaryKey(),
@@ -10,6 +11,7 @@ export const settingsTable = pgTable("settings", {
   copyrightText:     text("copyright_text").notNull().default(""),
   email:             text("email").notNull().default(""),
   socialLinks:       jsonb("social_links").$type<SocialLink[]>().notNull().default([]),
+  navLinks:          jsonb("nav_links").$type<NavLink[]>().notNull().default([]),
 });
 
 export type Settings = typeof settingsTable.$inferSelect;

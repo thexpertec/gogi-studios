@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Settings, Plus, Trash2, Save, Upload, ImageIcon, Camera, Pencil, X as XIcon, ChevronRight } from "lucide-react";
+import { Loader2, Settings, Plus, Trash2, Save, Upload, ImageIcon, Camera, Pencil, X as XIcon, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 const STATIC_LOGO = "/api/static-images/gogi-logo.png";
 import type { WorkSection, SubCategory } from "@/lib/workSections";
 import { buildTreeOrder } from "@/lib/workSections";
@@ -31,7 +31,20 @@ const PLATFORM_OPTIONS = [
   { value: "other",     label: "Other" },
 ];
 
-type Tab = "branding" | "contact" | "logo" | "social" | "images" | "testimonials" | "workgallery";
+export interface NavLinkItem {
+  label: string;
+  href: string;
+}
+
+const DEFAULT_NAV_LINKS: NavLinkItem[] = [
+  { label: "Services", href: "/services" },
+  { label: "Awards",   href: "/awards" },
+  { label: "News",     href: "/blog" },
+  { label: "Books",    href: "/books" },
+  { label: "Shop",     href: "/merchandise" },
+];
+
+type Tab = "branding" | "contact" | "logo" | "social" | "navigation" | "images" | "testimonials" | "workgallery";
 type SectionType = "books" | "merchandise" | "projects";
 
 const GALLERY_DOMAINS = [
@@ -88,6 +101,9 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
 
   // Social links
   const [links, setLinks] = useState<SocialLink[]>([]);
+
+  // Navigation links
+  const [navLinks, setNavLinks] = useState<NavLinkItem[]>([]);
 
   // Logo
   const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
@@ -221,6 +237,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
         setCopyrightText(data.copyrightText ?? "");
         setEmail(data.email ?? "");
         setLinks(Array.isArray(data.socialLinks) ? data.socialLinks : []);
+        setNavLinks(Array.isArray(data.navLinks) && data.navLinks.length > 0 ? data.navLinks : DEFAULT_NAV_LINKS);
         setCurrentLogoUrl(logoUrl);
         setContentImages(imgMap ?? {});
         setCatalog({ books: cat.books ?? [], merchandise: cat.merchandise ?? [], projects: cat.projects ?? [] });
@@ -254,6 +271,21 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   function updateLink(i: number, field: keyof SocialLink, value: string) { setLinks((p) => p.map((l, idx) => idx === i ? { ...l, [field]: value } : l)); setSuccess(false); }
   function addLink() { setLinks((p) => [...p, { platform: "facebook", url: "" }]); setSuccess(false); }
   function removeLink(i: number) { setLinks((p) => p.filter((_, idx) => idx !== i)); setSuccess(false); }
+
+  // Nav link helpers
+  function updateNavLink(i: number, field: keyof NavLinkItem, value: string) { setNavLinks((p) => p.map((l, idx) => idx === i ? { ...l, [field]: value } : l)); setSuccess(false); }
+  function addNavLink() { setNavLinks((p) => [...p, { label: "", href: "/" }]); setSuccess(false); }
+  function removeNavLink(i: number) { setNavLinks((p) => p.filter((_, idx) => idx !== i)); setSuccess(false); }
+  function moveNavLink(i: number, dir: -1 | 1) {
+    setNavLinks((p) => {
+      const j = i + dir;
+      if (j < 0 || j >= p.length) return p;
+      const next = [...p];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+    setSuccess(false);
+  }
 
   // Logo
   function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -697,7 +729,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setError(""); setSuccess(false);
     try {
-      const r = await fetch(`${API}/settings`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyName, tagline, footerDescription, copyrightText, email, socialLinks: links }) });
+      const r = await fetch(`${API}/settings`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyName, tagline, footerDescription, copyrightText, email, socialLinks: links, navLinks: navLinks.filter((l) => l.label.trim() && l.href.trim()) }) });
       const data = await r.json();
       if (data.ok) { setSuccess(true); window.dispatchEvent(new CustomEvent("settings-updated", { detail: data.settings })); }
       else { setError(data.error ?? "Failed to save settings."); }
@@ -710,6 +742,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     { id: "contact",      label: "Contact" },
     { id: "logo",         label: "Logo" },
     { id: "social",       label: "Social Links" },
+    { id: "navigation",   label: "Navigation" },
     { id: "images",       label: "Page Images" },
     { id: "testimonials", label: "Testimonials" },
     { id: "workgallery",  label: "Galleries" },
@@ -840,6 +873,33 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── NAVIGATION ── */}
+            {activeTab === "navigation" && (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">Edit the navbar menu items. Change a label or link, reorder with the arrows, or add and remove items. Use <code className="text-xs bg-muted px-1 py-0.5 rounded">/</code> for the home page (same as clicking the logo).</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Menu items</p>
+                  <button type="button" onClick={addNavLink} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"><Plus className="w-3.5 h-3.5" /> Add</button>
+                </div>
+                {navLinks.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No menu items yet. Click "Add" to create one.</p> : (
+                  <div className="flex flex-col gap-2">
+                    {navLinks.map((link, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="flex flex-col shrink-0">
+                          <button type="button" onClick={() => moveNavLink(i, -1)} disabled={i === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-25 transition-colors" aria-label="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => moveNavLink(i, 1)} disabled={i === navLinks.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-25 transition-colors" aria-label="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>
+                        </div>
+                        <input type="text" placeholder="Label (e.g. Home)" value={link.label} onChange={(e) => updateNavLink(i, "label", e.target.value)} className="w-32 shrink-0 h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                        <input type="text" placeholder="Link (e.g. / or /services)" value={link.href} onChange={(e) => updateNavLink(i, "href", e.target.value)} className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                        <button type="button" onClick={() => removeNavLink(i)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground/70">Note: the "Work" dropdown is managed in the Galleries tab and always appears after the first menu item.</p>
               </div>
             )}
 

@@ -25,7 +25,7 @@ router.get("/settings", async (_req, res) => {
   try {
     const rows = await db.select().from(settingsTable).limit(1);
     if (!rows.length) {
-      res.json({ companyName: "Gogi Studios", tagline: "", footerDescription: "", copyrightText: "", email: "", socialLinks: [] });
+      res.json({ companyName: "Gogi Studios", tagline: "", footerDescription: "", copyrightText: "", email: "", socialLinks: [], navLinks: [] });
       return;
     }
     res.json(rows[0]);
@@ -48,9 +48,19 @@ router.put("/settings", async (req, res) => {
     }
   }
 
+  if (body.navLinks !== undefined) {
+    if (!Array.isArray(body.navLinks)) { res.status(400).json({ ok: false, error: "navLinks must be an array." }); return; }
+    for (const link of body.navLinks) {
+      if (typeof link.label !== "string" || typeof link.href !== "string") {
+        res.status(400).json({ ok: false, error: "Each nav link needs label and href strings." }); return;
+      }
+    }
+  }
+
   try {
     const update: Record<string, any> = {};
     if (body.socialLinks       !== undefined) update.socialLinks       = body.socialLinks;
+    if (body.navLinks          !== undefined) update.navLinks          = body.navLinks;
     if (typeof body.companyName       === "string") update.companyName       = body.companyName;
     if (typeof body.tagline           === "string") update.tagline           = body.tagline;
     if (typeof body.footerDescription === "string") update.footerDescription = body.footerDescription;
