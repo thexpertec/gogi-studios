@@ -1347,6 +1347,11 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                         </select>
                                       </div>
                                     )}
+                                    {sectionTree.length === 0 && !lockedSubCategory && (
+                                      <p className="text-[11px] text-muted-foreground/50 leading-relaxed">
+                                        ↓ To organise images by sub-category, add sub-categories in the section below first.
+                                      </p>
+                                    )}
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1.5">Caption <span className="text-destructive">*</span></p>
                                       <input type="text" value={newWorkCaption} onChange={(e) => setNewWorkCaption(e.target.value)}
