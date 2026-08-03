@@ -169,6 +169,8 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const [savingNewSub, setSavingNewSub] = useState(false);
   const [confirmDeleteSubSlug, setConfirmDeleteSubSlug] = useState<string | null>(null);
   const [newWorkSubCategory, setNewWorkSubCategory] = useState<string>("");
+  /** When set, the sub-category field in the add form is locked to this slug (triggered from a sub-cat row button). */
+  const [lockedSubCategory, setLockedSubCategory] = useState<string | null>(null);
   // Which section is currently expanded to show its sub-categories inline
   const [expandedSubSection, setExpandedSubSection] = useState<string | null>(null);
 
@@ -1158,7 +1160,18 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
 
                                 {/* Add media form — shown only inside the expanded (active) section */}
                                 {activeWorkSection === s.slug && addingWorkItem ? (
-                                  <div className="flex flex-col gap-3 p-3 rounded-xl border border-primary/40 bg-primary/5">
+                                  <div id={`add-work-form-${s.slug}`} className="flex flex-col gap-3 p-3 rounded-xl border border-primary/40 bg-primary/5">
+                                    {/* Locked sub-category banner */}
+                                    {lockedSubCategory && (
+                                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary/70">Adding to:</span>
+                                        <span className="text-xs font-medium text-primary truncate flex-1">
+                                          {activeTreeNodes.find((n) => n.node.slug === lockedSubCategory)?.pathLabel ?? lockedSubCategory}
+                                        </span>
+                                        <button type="button" onClick={() => { setLockedSubCategory(null); setNewWorkSubCategory(""); }}
+                                          className="text-[10px] text-primary/60 hover:text-primary transition-colors shrink-0 underline underline-offset-2">change</button>
+                                      </div>
+                                    )}
                                     {/* Image / Video toggle */}
                                     <div className="flex rounded-lg border border-border overflow-hidden self-start">
                                       {(["image", "video"] as const).map((t) => (
@@ -1194,7 +1207,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                       </div>
                                     )}
 
-                                    {activeTreeNodes.length > 0 && (
+                                    {activeTreeNodes.length > 0 && !lockedSubCategory && (
                                       <div>
                                         <p className="text-xs text-muted-foreground mb-1.5">Sub-category <span className="opacity-60">(optional)</span></p>
                                         <select value={newWorkSubCategory} onChange={(e) => setNewWorkSubCategory(e.target.value)}
@@ -1217,12 +1230,12 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                       <Button type="button" size="sm" onClick={handleSaveWorkItem} disabled={savingWorkItem || !newWorkCaption.trim() || (newWorkMediaType === "video" && !newWorkVideoUrl.trim())} className="rounded-full h-9 px-4 gap-1 text-xs">
                                         {savingWorkItem ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Save {newWorkMediaType === "video" ? "Video" : "Image"}
                                       </Button>
-                                      <button type="button" onClick={() => { setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2">Cancel</button>
+                                      <button type="button" onClick={() => { setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null); setNewWorkSubCategory(""); setLockedSubCategory(null); }} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2">Cancel</button>
                                     </div>
                                   </div>
                                 ) : (
                                   <button type="button"
-                                    onClick={() => { setActiveWorkSection(s.slug); setAddingWorkItem(true); setAddingSubParent(null); setNewWorkMediaType("image"); }}
+                                    onClick={() => { setActiveWorkSection(s.slug); setAddingWorkItem(true); setAddingSubParent(null); setNewWorkMediaType("image"); setLockedSubCategory(null); setNewWorkSubCategory(""); }}
                                     className="flex items-center justify-center gap-1.5 w-full py-2 text-xs text-primary font-medium border border-dashed border-primary/30 rounded-xl hover:bg-primary/5 hover:border-primary/50 transition-colors">
                                     <Plus className="w-3.5 h-3.5" /> Add Image or Video
                                   </button>
@@ -1295,7 +1308,20 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                                 <>
                                                   <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/30 shrink-0" />
                                                   <span className="flex-1 truncate">{node.label}</span>
-                                                  <button type="button" title="Add child" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
+                                                  <button type="button" title="Add image/video to this sub-category"
+                                                    onClick={() => {
+                                                      setActiveWorkSection(s.slug);
+                                                      setAddingWorkItem(true);
+                                                      setNewWorkSubCategory(node.slug);
+                                                      setLockedSubCategory(node.slug);
+                                                      setNewWorkMediaType("image");
+                                                      setAddingSubParent(null);
+                                                      setEditingSubSlug(null);
+                                                      setConfirmDeleteSubSlug(null);
+                                                      setTimeout(() => document.getElementById(`add-work-form-${s.slug}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+                                                    }}
+                                                    className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><ImageIcon className="w-3 h-3" /></button>
+                                                  <button type="button" title="Add child sub-category" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
                                                     className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
                                                   <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
                                                     className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><Pencil className="w-3 h-3" /></button>
