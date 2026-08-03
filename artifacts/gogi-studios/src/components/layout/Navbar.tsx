@@ -18,6 +18,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileWorkOpen, setMobileWorkOpen] = useState(false);
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>(null);
+  const [currentHash, setCurrentHash] = useState(() => window.location.hash);
   const workRef = useRef<HTMLDivElement>(null);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flyoutTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,6 +46,14 @@ export function Navbar() {
     }
     window.addEventListener("settings-updated", onSettingsUpdated);
     return () => window.removeEventListener("settings-updated", onSettingsUpdated);
+  }, []);
+
+  // Track URL hash for active sub-category highlighting
+  useEffect(() => {
+    setCurrentHash(window.location.hash);
+    function onHashChange() { setCurrentHash(window.location.hash); }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   // Close mobile menu on navigation
@@ -178,16 +187,19 @@ export function Navbar() {
                         {activeSectionData.label}
                       </p>
                       <div className="h-px bg-border mx-3 my-1" />
-                      {buildTreeOrder(activeSectionData.subCategories).map(({ node, depth }) => (
-                        <Link
-                          key={node.slug}
-                          href={`/work/${activeSectionData.slug}#${node.slug}`}
-                          style={{ paddingLeft: `${(depth + 1) * 16}px` }}
-                          className={`block py-2 pr-4 text-sm transition-colors hover:bg-muted hover:text-primary leading-snug text-muted-foreground`}
-                        >
-                          {node.label}
-                        </Link>
-                      ))}
+                      {buildTreeOrder(activeSectionData.subCategories).map(({ node, depth }) => {
+                        const isSubActive = currentHash === `#${node.slug}`;
+                        return (
+                          <Link
+                            key={node.slug}
+                            href={`/work/${activeSectionData.slug}#${node.slug}`}
+                            style={{ paddingLeft: `${(depth + 1) * 16}px` }}
+                            className={`block py-2 pr-4 text-sm transition-colors hover:bg-muted hover:text-primary leading-snug ${isSubActive ? "text-primary font-medium bg-muted/60" : "text-muted-foreground"}`}
+                          >
+                            {node.label}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -270,15 +282,18 @@ export function Navbar() {
                         </div>
                         {hasSubCats && isExpanded && (
                           <div className="flex flex-col pl-4 pb-1 gap-0.5 border-l border-border/50 ml-1 mb-1">
-                            {buildTreeOrder(s.subCategories).map(({ node }) => (
-                              <Link
-                                key={node.slug}
-                                href={`/work/${s.slug}#${node.slug}`}
-                                className="py-1.5 text-xs transition-colors hover:text-primary text-muted-foreground/70 leading-snug"
-                              >
-                                {node.label}
-                              </Link>
-                            ))}
+                            {buildTreeOrder(s.subCategories).map(({ node }) => {
+                              const isSubActive = currentHash === `#${node.slug}`;
+                              return (
+                                <Link
+                                  key={node.slug}
+                                  href={`/work/${s.slug}#${node.slug}`}
+                                  className={`py-1.5 text-xs transition-colors hover:text-primary leading-snug ${isSubActive ? "text-primary font-medium" : "text-muted-foreground/70"}`}
+                                >
+                                  {node.label}
+                                </Link>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

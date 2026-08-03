@@ -191,6 +191,24 @@
   animation: marquee 35s linear infinite;
 }
 
+/* Smooth hash-scroll with offset for the fixed 80 px navbar */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+}
+
+/* Section flash — brief highlight when navigating to a sub-category anchor */
+@keyframes section-flash {
+  0%   { background-color: transparent; }
+  15%  { background-color: hsl(var(--primary) / 0.08); border-radius: 0.75rem; }
+  85%  { background-color: hsl(var(--primary) / 0.06); border-radius: 0.75rem; }
+  100% { background-color: transparent; }
+}
+
+.section-highlight {
+  animation: section-flash 1.6s ease-in-out forwards;
+}
+
 @layer base {
   * {
     @apply border-border;

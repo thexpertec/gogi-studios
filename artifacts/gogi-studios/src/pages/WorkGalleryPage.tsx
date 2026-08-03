@@ -39,6 +39,31 @@ export default function WorkGalleryPage({ slug = "" }: Props) {
   const [loading, setLoading] = useState(true);
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
+  // Flash the target section when navigating to a hash anchor
+  useEffect(() => {
+    function flashSection(hash: string) {
+      if (!hash) return;
+      const id = hash.replace(/^#/, "");
+      // Wait for scroll to settle before applying the class
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove("section-highlight");
+        // Force a reflow so re-triggering the animation works
+        void el.offsetWidth;
+        el.classList.add("section-highlight");
+        const cleanup = () => el.classList.remove("section-highlight");
+        el.addEventListener("animationend", cleanup, { once: true });
+      }, 320);
+    }
+
+    flashSection(window.location.hash);
+
+    function onHashChange() { flashSection(window.location.hash); }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
