@@ -516,6 +516,27 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     finally { setSavingNewSection(false); }
   }
 
+  /** One-click: auto-creates a default category named after the domain and opens the upload form immediately. */
+  async function handleQuickStartDomain() {
+    const domainLabel = GALLERY_DOMAINS.find((d) => d.id === galleryDomain)?.label ?? galleryDomain;
+    const slug = labelToSlug(domainLabel);
+    setSavingNewSection(true); setError("");
+    try {
+      const r = await fetch(`${API}/work-sections`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, label: domainLabel, domain: galleryDomain }) });
+      const data = await r.json();
+      if (data.ok) {
+        setActiveSections([...getActiveSections(), data.section]);
+        setWorkGalleryItems((prev) => ({ ...prev, [data.section.slug]: [] }));
+        setAddingNewSection(false); setNewSectionLabel("");
+        setExpandedSubSection(data.section.slug);
+        setActiveWorkSection(data.section.slug);
+        setAddingWorkItem(true);
+        setNewWorkMediaType("image");
+      } else { setError(data.error ?? "Failed to create section."); }
+    } catch { setError("Network error."); }
+    finally { setSavingNewSection(false); }
+  }
+
   // Work Gallery — sub-category management
   async function handleAddSubCategory() {
     if (!newSubLabel.trim() || !expandedSubSection) return;
@@ -1314,7 +1335,18 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                     })}
 
                     {activeSections.length === 0 && !addingNewSection && (
-                      <p className="text-sm text-muted-foreground text-center py-3">No categories yet. Click "Add Category" to create one.</p>
+                      <div className="flex flex-col items-center gap-3 py-5 text-center">
+                        <p className="text-sm text-muted-foreground">No categories yet.</p>
+                        <button type="button" onClick={handleQuickStartDomain} disabled={savingNewSection}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
+                          {savingNewSection ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                          Upload Images Directly
+                        </button>
+                        <button type="button" onClick={() => { setAddingNewSection(true); setEditingSlug(null); }}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
+                          or add multiple named categories
+                        </button>
+                      </div>
                     )}
                     {addingNewSection && (
                       <div className="flex items-center gap-2 p-2 rounded-xl border border-primary/40 bg-primary/5">
