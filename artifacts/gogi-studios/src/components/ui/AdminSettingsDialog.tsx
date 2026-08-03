@@ -160,6 +160,13 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const existingWorkFileRef = useRef<HTMLInputElement>(null);
   const pendingWorkTarget = useRef<{ section: string; id: string } | null>(null);
 
+  // Work Gallery — inline item edit
+  const [editingWorkItemId, setEditingWorkItemId] = useState<string | null>(null);
+  const [editingWorkItemSection, setEditingWorkItemSection] = useState<string>("");
+  const [editWorkCaption, setEditWorkCaption] = useState("");
+  const [editWorkVideoUrl, setEditWorkVideoUrl] = useState("");
+  const [savingWorkItemEdit, setSavingWorkItemEdit] = useState(false);
+
   // Work Gallery — sub-category management
   const [editingSubSlug, setEditingSubSlug] = useState<string | null>(null);
   const [editSubLabel, setEditSubLabel] = useState("");
@@ -190,6 +197,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     setAddingTestimonial(false); setNewTestiCaption(""); setNewTestiFile(null); setNewTestiPreview(null);
     setEditingTestiId(null); setEditTestiCaption(""); setConfirmDeleteTestiId(null);
     setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null);
+    setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl("");
     setEditingSlug(null); setEditLabel(""); setAddingNewSection(false); setNewSectionLabel("");
     setEditingSubSlug(null); setEditSubLabel(""); setAddingSubParent(null); setNewSubLabel(""); setConfirmDeleteSubSlug(null); setNewWorkSubCategory(""); setExpandedSubSection(null);
 
@@ -659,6 +667,29 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       window.dispatchEvent(new CustomEvent("settings-updated", { detail: { workGallery: updatedGallery, contentImages: newContentImages } }));
     } catch { setError("Network error adding item."); }
     finally { setSavingWorkItem(false); }
+  }
+
+  // Work Gallery — save inline item edit
+  async function handleSaveWorkItemEdit(sectionSlug: string, itemId: string, isVideo: boolean) {
+    if (!editWorkCaption.trim()) return;
+    setSavingWorkItemEdit(true); setError("");
+    try {
+      const body: Record<string, unknown> = { caption: editWorkCaption.trim() };
+      if (isVideo) { body.mediaType = "video"; body.videoUrl = editWorkVideoUrl.trim(); }
+      const r = await fetch(`${API}/work-gallery/${sectionSlug}/${itemId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!data.ok) { setError(data.error ?? "Failed to update item."); return; }
+      setWorkGalleryItems((prev) => ({
+        ...prev,
+        [sectionSlug]: (prev[sectionSlug] ?? []).map((it) =>
+          it.id === itemId
+            ? { ...it, caption: editWorkCaption.trim(), videoUrl: isVideo ? editWorkVideoUrl.trim() : it.videoUrl }
+            : it
+        ),
+      }));
+      setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl("");
+    } catch { setError("Network error updating item."); }
+    finally { setSavingWorkItemEdit(false); }
   }
 
   // Save text settings
@@ -1133,6 +1164,57 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                     const imgKey = `work-${s.slug}/${item.id}`;
                                     const imgUrl = isVideo ? null : contentImages[imgKey];
                                     const isUploading = uploadingWorkKey === imgKey;
+                                    const isEditing = editingWorkItemId === item.id && editingWorkItemSection === s.slug;
+
+                                    if (isEditing) {
+                                      return (
+                                        <div key={item.id} className="flex flex-col gap-2.5 p-3 rounded-xl border border-primary/40 bg-primary/5">
+                                          {/* Thumbnail / replace button stays interactive while editing */}
+                                          <div className="flex items-start gap-3">
+                                            {isVideo ? (
+                                              <div className="w-14 h-14 rounded-lg border border-border bg-violet-50 dark:bg-violet-950/30 flex flex-col items-center justify-center shrink-0 gap-0.5">
+                                                <svg className="w-5 h-5 text-violet-500" viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.82v10.36c0 .79.87 1.27 1.54.84l8.14-5.18a1 1 0 0 0 0-1.69L9.54 5.98A1 1 0 0 0 8 6.82Z"/></svg>
+                                                <span className="text-[9px] font-semibold text-violet-500 uppercase tracking-wide">Video</span>
+                                              </div>
+                                            ) : (
+                                              <button type="button" onClick={() => triggerWorkImageUpload(s.slug, item.id)} disabled={!!uploadingWorkKey}
+                                                className="w-14 h-14 rounded-lg border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 relative" title="Replace image">
+                                                {isUploading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : imgUrl ? (
+                                                  <><img src={imgUrl} alt={item.caption} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-3 h-3 text-white" /></div></>
+                                                ) : (
+                                                  <><ImageIcon className="w-4 h-4 text-muted-foreground/40" /><div className="absolute inset-0 bg-primary/10 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg"><Camera className="w-3 h-3 text-primary" /></div></>
+                                                )}
+                                              </button>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-[10px] text-muted-foreground/60 mb-1">{isVideo ? "Video URL" : "Click thumbnail to replace image"}</p>
+                                              {isVideo && (
+                                                <input type="url" value={editWorkVideoUrl} onChange={(e) => setEditWorkVideoUrl(e.target.value)}
+                                                  className="w-full h-8 rounded-lg border border-input bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                                  placeholder="https://youtube.com/watch?v=…" />
+                                              )}
+                                            </div>
+                                          </div>
+                                          {/* Caption */}
+                                          <div>
+                                            <p className="text-[10px] text-muted-foreground/60 mb-1">Caption <span className="text-destructive">*</span></p>
+                                            <input type="text" value={editWorkCaption} onChange={(e) => setEditWorkCaption(e.target.value)} autoFocus
+                                              className="w-full h-8 rounded-lg border border-input bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                              onKeyDown={(e) => { if (e.key === "Escape") { setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); } if (e.key === "Enter") { e.preventDefault(); handleSaveWorkItemEdit(s.slug, item.id, isVideo); } }} />
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button type="button" size="sm" onClick={() => handleSaveWorkItemEdit(s.slug, item.id, isVideo)}
+                                              disabled={savingWorkItemEdit || !editWorkCaption.trim() || (isVideo && !editWorkVideoUrl.trim())}
+                                              className="rounded-full h-7 px-3 gap-1 text-xs">
+                                              {savingWorkItemEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : null} Save
+                                            </Button>
+                                            <button type="button" onClick={() => { setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); }}
+                                              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2">Cancel</button>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
                                     return (
                                       <div key={item.id} className="flex items-start gap-3 p-2.5 rounded-xl border border-border/60 bg-background hover:border-primary/30 transition-colors group">
                                         {isVideo ? (
@@ -1159,6 +1241,12 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                               className="text-xs text-muted-foreground hover:text-primary transition-colors">{imgUrl ? "Replace image" : "Upload image"}</button>
                                           )}
                                         </div>
+                                        {/* Edit button */}
+                                        <button type="button" title="Edit caption / URL"
+                                          onClick={() => { setEditingWorkItemId(item.id); setEditingWorkItemSection(s.slug); setEditWorkCaption(item.caption); setEditWorkVideoUrl(item.videoUrl ?? ""); }}
+                                          className="p-1 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100">
+                                          <Pencil className="w-3 h-3" />
+                                        </button>
                                       </div>
                                     );
                                   };
