@@ -488,7 +488,9 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     if (!newSubLabel.trim() || !expandedSubSection) return;
     setSavingNewSub(true); setError("");
     try {
-      const body = { label: newSubLabel.trim(), parentSlug: addingSubParent === "root" ? null : addingSubParent };
+      const slug = labelToSlug(newSubLabel.trim());
+      if (!slug) { setError("Sub-category name must contain at least one letter or number."); setSavingNewSub(false); return; }
+      const body = { slug, label: newSubLabel.trim(), parentSlug: addingSubParent === "root" ? null : addingSubParent };
       const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await r.json();
       if (data.ok) {
