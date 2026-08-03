@@ -165,6 +165,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const [editingWorkItemSection, setEditingWorkItemSection] = useState<string>("");
   const [editWorkCaption, setEditWorkCaption] = useState("");
   const [editWorkVideoUrl, setEditWorkVideoUrl] = useState("");
+  const [editWorkSubCategory, setEditWorkSubCategory] = useState<string>("");
   const [savingWorkItemEdit, setSavingWorkItemEdit] = useState(false);
 
   // Work Gallery — sub-category management
@@ -197,7 +198,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     setAddingTestimonial(false); setNewTestiCaption(""); setNewTestiFile(null); setNewTestiPreview(null);
     setEditingTestiId(null); setEditTestiCaption(""); setConfirmDeleteTestiId(null);
     setAddingWorkItem(false); setNewWorkCaption(""); setNewWorkMediaType("image"); setNewWorkVideoUrl(""); setNewWorkFile(null); setNewWorkPreview(null);
-    setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl("");
+    setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); setEditWorkSubCategory("");
     setEditingSlug(null); setEditLabel(""); setAddingNewSection(false); setNewSectionLabel("");
     setEditingSubSlug(null); setEditSubLabel(""); setAddingSubParent(null); setNewSubLabel(""); setConfirmDeleteSubSlug(null); setNewWorkSubCategory(""); setExpandedSubSection(null);
 
@@ -674,7 +675,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     if (!editWorkCaption.trim()) return;
     setSavingWorkItemEdit(true); setError("");
     try {
-      const body: Record<string, unknown> = { caption: editWorkCaption.trim() };
+      const body: Record<string, unknown> = { caption: editWorkCaption.trim(), subCategorySlug: editWorkSubCategory || null };
       if (isVideo) { body.mediaType = "video"; body.videoUrl = editWorkVideoUrl.trim(); }
       const r = await fetch(`${API}/work-gallery/${sectionSlug}/${itemId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await r.json();
@@ -683,11 +684,11 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
         ...prev,
         [sectionSlug]: (prev[sectionSlug] ?? []).map((it) =>
           it.id === itemId
-            ? { ...it, caption: editWorkCaption.trim(), videoUrl: isVideo ? editWorkVideoUrl.trim() : it.videoUrl }
+            ? { ...it, caption: editWorkCaption.trim(), videoUrl: isVideo ? editWorkVideoUrl.trim() : it.videoUrl, subCategorySlug: editWorkSubCategory || null }
             : it
         ),
       }));
-      setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl("");
+      setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); setEditWorkSubCategory("");
     } catch { setError("Network error updating item."); }
     finally { setSavingWorkItemEdit(false); }
   }
@@ -1195,12 +1196,25 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                               )}
                                             </div>
                                           </div>
+                                          {/* Sub-category */}
+                                          {sectionTree.length > 0 && (
+                                            <div>
+                                              <p className="text-[10px] text-muted-foreground/60 mb-1">Sub-category</p>
+                                              <select value={editWorkSubCategory} onChange={(e) => setEditWorkSubCategory(e.target.value)}
+                                                className="w-full h-8 rounded-lg border border-input bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
+                                                <option value="">— Uncategorised —</option>
+                                                {activeTreeNodes.map(({ node, pathLabel }) => (
+                                                  <option key={node.slug} value={node.slug}>{pathLabel}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          )}
                                           {/* Caption */}
                                           <div>
                                             <p className="text-[10px] text-muted-foreground/60 mb-1">Caption <span className="text-destructive">*</span></p>
                                             <input type="text" value={editWorkCaption} onChange={(e) => setEditWorkCaption(e.target.value)} autoFocus
                                               className="w-full h-8 rounded-lg border border-input bg-background px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-                                              onKeyDown={(e) => { if (e.key === "Escape") { setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); } if (e.key === "Enter") { e.preventDefault(); handleSaveWorkItemEdit(s.slug, item.id, isVideo); } }} />
+                                              onKeyDown={(e) => { if (e.key === "Escape") { setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); setEditWorkSubCategory(""); } if (e.key === "Enter") { e.preventDefault(); handleSaveWorkItemEdit(s.slug, item.id, isVideo); } }} />
                                           </div>
                                           <div className="flex gap-2">
                                             <Button type="button" size="sm" onClick={() => handleSaveWorkItemEdit(s.slug, item.id, isVideo)}
@@ -1208,7 +1222,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                               className="rounded-full h-7 px-3 gap-1 text-xs">
                                               {savingWorkItemEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : null} Save
                                             </Button>
-                                            <button type="button" onClick={() => { setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); }}
+                                            <button type="button" onClick={() => { setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); setEditWorkSubCategory(""); }}
                                               className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2">Cancel</button>
                                           </div>
                                         </div>
@@ -1243,7 +1257,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                         </div>
                                         {/* Edit button */}
                                         <button type="button" title="Edit caption / URL"
-                                          onClick={() => { setEditingWorkItemId(item.id); setEditingWorkItemSection(s.slug); setEditWorkCaption(item.caption); setEditWorkVideoUrl(item.videoUrl ?? ""); }}
+                                          onClick={() => { setEditingWorkItemId(item.id); setEditingWorkItemSection(s.slug); setEditWorkCaption(item.caption); setEditWorkVideoUrl(item.videoUrl ?? ""); setEditWorkSubCategory(item.subCategorySlug ?? ""); }}
                                           className="p-1 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100">
                                           <Pencil className="w-3 h-3" />
                                         </button>
