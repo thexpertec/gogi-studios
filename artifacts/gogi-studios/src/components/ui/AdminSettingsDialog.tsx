@@ -344,17 +344,33 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     if (!newTestiCaption.trim()) return;
     setSavingTestimonial(true); setError("");
     try {
-      const r = await fetch(`${API}/testimonials`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caption: newTestiCaption.trim() }) });
+      // Build a single atomic request: caption + optional image in one call.
+      // The API uploads to R2 first, then inserts the DB row.
+      // If either step fails, nothing is saved (no orphaned rows or images).
+      let imageData: string | undefined;
+      let imageMimeType: string | undefined;
+      if (newTestiFile) {
+        imageData = await toBase64(newTestiFile);
+        imageMimeType = newTestiFile.type;
+      }
+
+      const r = await fetch(`${API}/testimonials`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: newTestiCaption.trim(), imageData, imageMimeType }),
+      });
       const data = await r.json();
       if (!data.ok) { setError(data.error ?? "Failed to add testimonial."); return; }
+
       const newItem: TestimonialItem = { id: data.item.id, caption: data.item.caption };
       let newContentImages = { ...contentImages };
-      if (newTestiFile) {
-        const base64 = await toBase64(newTestiFile);
-        const ir = await fetch(`${API}/content-images/testimonials/${newItem.id}`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: base64, mimeType: newTestiFile.type }) });
-        const idata = await ir.json();
-        if (idata.ok) { newContentImages = { ...newContentImages, [`testimonials/${newItem.id}`]: `${idata.url}?t=${Date.now()}` }; setContentImages(newContentImages); }
+      if (imageData) {
+        // Image was saved atomically by the API — register it in local state
+        newContentImages = { ...newContentImages, [`testimonials/${newItem.id}`]: `/api/content-images/testimonials/${newItem.id}?t=${Date.now()}` };
+        setContentImages(newContentImages);
       }
+
       const updated = [...testimonialsList, newItem];
       setTestimonialsList(updated);
       setAddingTestimonial(false); setNewTestiCaption(""); setNewTestiFile(null); setNewTestiPreview(null);
