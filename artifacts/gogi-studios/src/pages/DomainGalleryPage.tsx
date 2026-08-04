@@ -33,6 +33,10 @@ interface Props {
   pageLabel?: string;
   pageDescription?: string;
   emptyMessage?: string;
+  /** Optional content rendered between the header and the gallery (e.g. the services list). */
+  topContent?: React.ReactNode;
+  /** When true, the "Coming Soon" empty state is hidden even if the gallery has no items. */
+  hasTopContent?: boolean;
 }
 
 export default function DomainGalleryPage({
@@ -41,6 +45,8 @@ export default function DomainGalleryPage({
   pageLabel,
   pageDescription,
   emptyMessage = "Content for this section will appear here once it's been added from the admin panel.",
+  topContent,
+  hasTopContent = false,
 }: Props) {
   const [sections, setSections] = useState<WorkSection[]>([]);
   const [galleryItems, setGalleryItems] = useState<Record<string, GalleryItem[]>>({});
@@ -97,13 +103,15 @@ export default function DomainGalleryPage({
           )}
         </header>
 
+        {topContent}
+
         {loading && (
           <div className="flex justify-center py-24">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        {!loading && !hasContent && (
+        {!loading && !hasContent && !hasTopContent && (
           <div className="flex flex-col items-center justify-center py-32 gap-5 text-center">
             <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
               <ImageIcon className="w-9 h-9 text-primary/40" />
