@@ -9,6 +9,7 @@ import workGalleryRouter from "./workGallery";
 import workSectionsRouter from "./workSections";
 import staticImagesRouter from "./staticImages";
 import logoRouter from "./logo";
+import servicesRouter from "./services";
 
 const router: IRouter = Router();
 
@@ -18,6 +19,7 @@ router.use(settingsRouter);
 router.use(logoRouter);
 router.use(contentImagesRouter);
 router.use(catalogRouter);
+router.use(servicesRouter);
 router.use(testimonialsRouter);
 router.use(workGalleryRouter);
 router.use(workSectionsRouter);

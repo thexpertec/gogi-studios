@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Settings, Plus, Trash2, Save, Upload, ImageIcon, Camera, Pencil, X as XIcon, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, Settings, Plus, Trash2, Save, Upload, ImageIcon, Camera, Pencil, X as XIcon, ChevronRight, ChevronUp, ChevronDown, Star } from "lucide-react";
 const STATIC_LOGO = "/api/static-images/gogi-logo.png";
 import type { WorkSection, SubCategory } from "@/lib/workSections";
 import { buildTreeOrder } from "@/lib/workSections";
@@ -44,7 +44,7 @@ const DEFAULT_NAV_LINKS: NavLinkItem[] = [
   { label: "Shop",     href: "/merchandise" },
 ];
 
-type Tab = "branding" | "contact" | "logo" | "social" | "navigation" | "images" | "testimonials" | "workgallery";
+type Tab = "branding" | "contact" | "logo" | "social" | "navigation" | "services" | "images" | "testimonials" | "workgallery";
 type SectionType = "books" | "merchandise" | "projects";
 
 const GALLERY_DOMAINS = [
@@ -57,6 +57,7 @@ const GALLERY_DOMAINS = [
 ] as const;
 
 interface CatalogItem { id: string; name: string; }
+interface AdminService { id: string; title: string; description: string; topService: boolean; sortOrder: number; }
 interface CatalogState { books: CatalogItem[]; merchandise: CatalogItem[]; projects: CatalogItem[]; }
 interface TestimonialItem { id: string; caption: string; }
 interface WorkGalleryItem { id: string; caption: string; subCategorySlug?: string | null; mediaType?: string; videoUrl?: string | null; }
@@ -104,6 +105,12 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
 
   // Navigation links
   const [navLinks, setNavLinks] = useState<NavLinkItem[]>(DEFAULT_NAV_LINKS);
+
+  // Services
+  const [servicesList, setServicesList] = useState<AdminService[]>([]);
+  const [savingServiceId, setSavingServiceId] = useState<string | null>(null);
+  const [confirmDeleteServiceId, setConfirmDeleteServiceId] = useState<string | null>(null);
+  const [addingService, setAddingService] = useState(false);
 
   // Logo
   const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
@@ -229,8 +236,10 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       ]).then(([b, m, p]) => ({ books: b.items ?? [], merchandise: m.items ?? [], projects: p.items ?? [] })),
       fetch(`${API}/testimonials`).then((r) => r.json()).catch(() => ({ items: [] })),
       fetch(`${API}/work-sections?domain=all`).then((r) => r.json()).catch(() => []),
+      fetch(`${API}/services`).then((r) => r.json()).catch(() => ({ items: [] })),
     ])
-      .then(async ([data, logoUrl, imgMap, cat, testi, sectionsData]) => {
+      .then(async ([data, logoUrl, imgMap, cat, testi, sectionsData, servicesData]) => {
+        setServicesList(Array.isArray(servicesData.items) ? servicesData.items : []);
         setCompanyName(data.companyName ?? "");
         setTagline(data.tagline ?? "");
         setFooterDescription(data.footerDescription ?? "");
@@ -352,6 +361,87 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       } else { setError(data.error ?? "Failed to add item."); }
     } catch { setError("Network error adding item."); }
     finally { setAddingSaving(false); }
+  }
+
+  // ── Services handlers ──
+  function broadcastServices(updated: AdminService[]) {
+    window.dispatchEvent(new CustomEvent("settings-updated", { detail: { services: updated } }));
+  }
+
+  function updateServiceLocal(id: string, field: "title" | "description", value: string) {
+    setServicesList((p) => p.map((s) => s.id === id ? { ...s, [field]: value } : s));
+  }
+
+  async function saveServiceField(id: string, field: "title" | "description") {
+    const svc = servicesList.find((s) => s.id === id);
+    if (!svc) return;
+    if (field === "title" && !svc.title.trim()) return;
+    setSavingServiceId(id); setError("");
+    try {
+      const r = await fetch(`${API}/services/${id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: svc[field] }) });
+      const data = await r.json();
+      if (data.ok) {
+        const updated = servicesList.map((s) => s.id === id ? data.item : s);
+        setServicesList(updated); broadcastServices(updated);
+      } else setError(data.error ?? "Failed to save service.");
+    } catch { setError("Network error saving service."); }
+    finally { setSavingServiceId(null); }
+  }
+
+  async function toggleTopService(id: string) {
+    const svc = servicesList.find((s) => s.id === id);
+    if (!svc) return;
+    setSavingServiceId(id); setError("");
+    try {
+      const r = await fetch(`${API}/services/${id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topService: !svc.topService }) });
+      const data = await r.json();
+      if (data.ok) {
+        const updated = servicesList.map((s) => s.id === id ? data.item : s);
+        setServicesList(updated); broadcastServices(updated);
+      } else setError(data.error ?? "Failed to update service.");
+    } catch { setError("Network error."); }
+    finally { setSavingServiceId(null); }
+  }
+
+  async function moveService(i: number, dir: -1 | 1) {
+    const j = i + dir;
+    if (j < 0 || j >= servicesList.length) return;
+    const previous = servicesList;
+    const reordered = [...servicesList];
+    [reordered[i], reordered[j]] = [reordered[j], reordered[i]];
+    setServicesList(reordered); setError("");
+    try {
+      const r = await fetch(`${API}/services/reorder`, { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: reordered.map((s) => s.id) }) });
+      const data = await r.json();
+      if (data.ok) { setServicesList(data.items); broadcastServices(data.items); }
+      else { setServicesList(previous); setError(data.error ?? "Failed to reorder."); }
+    } catch { setServicesList(previous); setError("Network error reordering."); }
+  }
+
+  async function addService() {
+    setAddingService(true); setError("");
+    try {
+      const r = await fetch(`${API}/services`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "New Service", description: "" }) });
+      const data = await r.json();
+      if (data.ok) {
+        const updated = [...servicesList, data.item];
+        setServicesList(updated); broadcastServices(updated);
+      } else setError(data.error ?? "Failed to add service.");
+    } catch { setError("Network error adding service."); }
+    finally { setAddingService(false); }
+  }
+
+  async function deleteService(id: string) {
+    setSavingServiceId(id); setError("");
+    try {
+      const r = await fetch(`${API}/services/${id}`, { method: "DELETE", credentials: "include" });
+      const data = await r.json();
+      if (data.ok) {
+        const updated = servicesList.filter((s) => s.id !== id);
+        setServicesList(updated); setConfirmDeleteServiceId(null); broadcastServices(updated);
+      } else setError(data.error ?? "Failed to delete service.");
+    } catch { setError("Network error deleting service."); }
+    finally { setSavingServiceId(null); }
   }
 
   // Catalog — rename item
@@ -743,12 +833,13 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     { id: "logo",         label: "Logo" },
     { id: "social",       label: "Social Links" },
     { id: "navigation",   label: "Navigation" },
+    { id: "services",     label: "Services" },
     { id: "images",       label: "Page Images" },
     { id: "testimonials", label: "Testimonials" },
     { id: "workgallery",  label: "Galleries" },
   ];
 
-  const isActionTab = activeTab === "logo" || activeTab === "images" || activeTab === "testimonials" || activeTab === "workgallery";
+  const isActionTab = activeTab === "logo" || activeTab === "images" || activeTab === "testimonials" || activeTab === "workgallery" || activeTab === "services";
   const SECTION_TYPES: SectionType[] = ["books", "merchandise", "projects"];
 
   // Derived: domain-aware sections
@@ -900,6 +991,55 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground/70">Note: the "Work" dropdown is managed in the Galleries tab and always appears after the first menu item.</p>
+              </div>
+            )}
+
+            {/* ── SERVICES ── */}
+            {activeTab === "services" && (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">Edit your services. Changes save automatically when you click away from a field. Starred services are featured on the homepage.</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Services ({servicesList.length})</p>
+                  <button type="button" onClick={addService} disabled={addingService} className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors disabled:opacity-50">
+                    {addingService ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Add
+                  </button>
+                </div>
+                {servicesList.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No services yet. Click "Add" to create one.</p> : (
+                  <div className="flex flex-col gap-3">
+                    {servicesList.map((svc, i) => (
+                      <div key={svc.id} className={`rounded-xl border p-3 flex flex-col gap-2 transition-colors ${svc.topService ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+                        <div className="flex items-center gap-2">
+                          <div className="flex flex-col shrink-0">
+                            <button type="button" onClick={() => moveService(i, -1)} disabled={i === 0} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-25 transition-colors" aria-label="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>
+                            <button type="button" onClick={() => moveService(i, 1)} disabled={i === servicesList.length - 1} className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-25 transition-colors" aria-label="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>
+                          </div>
+                          <input type="text" placeholder="Service title" value={svc.title}
+                            onChange={(e) => updateServiceLocal(svc.id, "title", e.target.value)}
+                            onBlur={() => saveServiceField(svc.id, "title")}
+                            className="flex-1 h-9 rounded-lg border border-input bg-background px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                          <button type="button" onClick={() => toggleTopService(svc.id)} disabled={savingServiceId === svc.id}
+                            title={svc.topService ? "Featured on homepage — click to unfeature" : "Click to feature on homepage"}
+                            className={`p-1.5 rounded-md transition-colors shrink-0 ${svc.topService ? "text-primary" : "text-muted-foreground/40 hover:text-primary/60"}`}>
+                            {savingServiceId === svc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className={`w-4 h-4 ${svc.topService ? "fill-current" : ""}`} />}
+                          </button>
+                          {confirmDeleteServiceId === svc.id ? (
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              <button type="button" onClick={() => deleteService(svc.id)} className="text-xs font-medium text-destructive hover:underline">Delete</button>
+                              <button type="button" onClick={() => setConfirmDeleteServiceId(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                            </span>
+                          ) : (
+                            <button type="button" onClick={() => setConfirmDeleteServiceId(svc.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"><Trash2 className="w-4 h-4" /></button>
+                          )}
+                        </div>
+                        <textarea rows={2} placeholder="Service description" value={svc.description}
+                          onChange={(e) => updateServiceLocal(svc.id, "description", e.target.value)}
+                          onBlur={() => saveServiceField(svc.id, "description")}
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground/70">Starred services appear as the highlighted cards on the homepage, in this order.</p>
               </div>
             )}
 

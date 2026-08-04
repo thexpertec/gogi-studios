@@ -11,7 +11,11 @@ import { Editable } from "@/components/ui/Editable";
 import { EditableImage } from "@/components/ui/EditableImage";
 import { useState, useEffect } from "react";
 
-const topFive = services.filter((s) => s.topRevenue);
+interface DynamicService { id: string; title: string; description: string; topService: boolean; sortOrder: number; }
+
+const FALLBACK_SERVICES: DynamicService[] = services.map((s, i) => ({
+  id: s.id, title: s.title, description: s.description, topService: !!s.topRevenue, sortOrder: i,
+}));
 
 const clientLogos = [
   "UN Agencies",
@@ -32,6 +36,7 @@ interface DynamicTestimonial { id: string; caption: string; imageUrl: string; }
 
 export default function Home() {
   const [dynamicTestimonials, setDynamicTestimonials] = useState<DynamicTestimonial[]>([]);
+  const [dynamicServices, setDynamicServices] = useState<DynamicService[]>(FALLBACK_SERVICES);
   const [testimonialImages, setTestimonialImages] = useState<Record<string, string>>({});
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
@@ -42,11 +47,15 @@ export default function Home() {
     fetch("/api/content-images").then((r) => r.json())
       .then((m) => setTestimonialImages(m ?? {}))
       .catch(() => {});
+    fetch("/api/services").then((r) => r.json())
+      .then((d) => { if (Array.isArray(d.items)) setDynamicServices(d.items); })
+      .catch(() => {});
 
     const handler = (e: Event) => {
       const d = (e as CustomEvent).detail;
       if (d?.testimonials) setDynamicTestimonials(d.testimonials);
       if (d?.contentImages) setTestimonialImages(d.contentImages);
+      if (Array.isArray(d?.services)) setDynamicServices(d.services);
     };
     window.addEventListener("settings-updated", handler);
     return () => window.removeEventListener("settings-updated", handler);
@@ -55,6 +64,9 @@ export default function Home() {
   function getTestimonialImg(id: string) {
     return testimonialImages[`testimonials/${id}`] ?? null;
   }
+
+  const topServices = dynamicServices.filter((s) => s.topService);
+  const totalServices = dynamicServices.length;
   return (
     <PageTransition className="pt-20 pb-0 overflow-x-hidden">
 
@@ -326,7 +338,7 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
-            {topFive.map((service, i) => (
+            {topServices.map((service, i) => (
               <div
                 key={service.id}
                 className={`rounded-3xl p-8 flex flex-col gap-4 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl cursor-default
@@ -362,7 +374,7 @@ export default function Home() {
           <div className="text-center">
             <Link href="/services" data-testid="link-all-services">
               <Button className="rounded-full px-10 bg-foreground text-background hover:bg-foreground/85 font-bold text-base shadow-lg hover:scale-105 transition-all">
-                <Editable id="home-services-cta">View All 20 Services</Editable> <ArrowRight className="w-4 h-4 ml-2" />
+                View All {totalServices} Services <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
           </div>
