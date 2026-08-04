@@ -65,7 +65,7 @@ export default function Home() {
     return testimonialImages[`testimonials/${id}`] ?? null;
   }
 
-  const topServices = dynamicServices.filter((s) => s.topService);
+  const topServices = dynamicServices.slice(0, 4);
   const totalServices = dynamicServices.length;
   return (
     <PageTransition className="pt-20 pb-0 overflow-x-hidden">
@@ -319,7 +319,7 @@ export default function Home() {
       {/* ── HIGH-IMPACT SERVICES ─────────────────────────────────────────── */}
       <section className="py-28 bg-secondary text-secondary-foreground relative overflow-hidden">
         <span className="absolute -right-8 top-1/2 -translate-y-1/2 text-[20rem] font-serif font-bold text-black/5 leading-none select-none hidden lg:block" aria-hidden="true">
-          5
+          {topServices.length}
         </span>
 
         <div className="container mx-auto px-4 relative z-10">
@@ -350,8 +350,8 @@ export default function Home() {
               >
                 <div className="flex items-start justify-between">
                   <span className={`text-5xl font-serif font-bold ${i === 0 ? "text-white/20" : "text-black/15"}`}>0{i + 1}</span>
-                  {i === 0 && (
-                    <span className="text-xs font-bold uppercase tracking-wider bg-white/20 text-white px-3 py-1 rounded-full flex items-center gap-1">
+                  {service.topService && (
+                    <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1 ${i === 0 ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}>
                       <Star className="w-3 h-3" /> Top Service
                     </span>
                   )}
