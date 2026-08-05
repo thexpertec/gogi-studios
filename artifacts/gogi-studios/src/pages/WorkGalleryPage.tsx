@@ -17,19 +17,7 @@ interface Props {
   slug?: string;
 }
 
-/** Convert a YouTube / Vimeo / direct URL to an embeddable URL. Returns null if unrecognised. */
-function toEmbedUrl(url: string): { type: "iframe" | "video"; src: string } | null {
-  const ytMatch = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-  );
-  if (ytMatch) return { type: "iframe", src: `https://www.youtube.com/embed/${ytMatch[1]}?rel=0` };
-
-  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeoMatch) return { type: "iframe", src: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
-
-  if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url)) return { type: "video", src: url };
-  return null;
-}
+import { toEmbedUrl } from "@/lib/embed";
 
 export default function WorkGalleryPage({ slug = "" }: Props) {
   const [section, setSection] = useState<WorkSection | null>(null);
