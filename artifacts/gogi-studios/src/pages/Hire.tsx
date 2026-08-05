@@ -298,7 +298,7 @@ export default function Hire() {
               </h3>
               <ul className="space-y-3">
                 {[
-                  "50+ years of cultural authority",
+                  "45+ years of cultural authority",
                   "UN, INGO & government track record",
                   "End-to-end: strategy to delivery",
                   "Multilingual content capability",
