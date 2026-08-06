@@ -437,10 +437,10 @@ export default function Home() {
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="text-center mb-16">
             <p className="text-sm font-bold uppercase tracking-widest text-primary mb-4">
-              <Editable id="home-testimonials-label">Client Testimonials</Editable>
+              <Editable id="home-testimonials-label">Awards &amp; Recognition</Editable>
             </p>
             <h2 className="text-4xl font-serif font-bold">
-              <Editable id="home-testimonials-title">What our partners say</Editable>
+              <Editable id="home-testimonials-title">Honours we're proud of</Editable>
             </h2>
           </div>
         </div>
