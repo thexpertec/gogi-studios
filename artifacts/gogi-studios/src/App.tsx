@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch, Router as WouterRouter } from "wouter";
+import { Route, Switch, Router as WouterRouter, useLocation } from "wouter";
+import { useEffect } from "react";
 import { EditProvider } from "@/contexts/EditContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { EditToolbar } from "@/components/ui/EditToolbar";
@@ -22,6 +23,14 @@ import AdminLogin from "@/pages/AdminLogin";
 import WorkGalleryPage from "@/pages/WorkGalleryPage";
 
 const queryClient = new QueryClient();
+
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
 
 function Router() {
   return (
@@ -52,6 +61,7 @@ function App() {
         <AuthProvider>
           <EditProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <ScrollToTop />
               <Switch>
                 <Route path="/admin" component={AdminLogin} />
                 <Route>
