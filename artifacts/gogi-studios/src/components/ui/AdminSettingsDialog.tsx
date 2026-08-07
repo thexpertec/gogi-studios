@@ -200,6 +200,8 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   const [newSubLabel, setNewSubLabel] = useState("");
   const [savingNewSub, setSavingNewSub] = useState(false);
   const [confirmDeleteSubSlug, setConfirmDeleteSubSlug] = useState<string | null>(null);
+  const [confirmDeleteWorkItemId, setConfirmDeleteWorkItemId] = useState<string | null>(null);
+  const [deletingWorkItemId, setDeletingWorkItemId] = useState<string | null>(null);
   const [newWorkSubCategory, setNewWorkSubCategory] = useState<string>("");
   /** When set, the sub-category field in the add form is locked to this slug (triggered from a sub-cat row button). */
   const [lockedSubCategory, setLockedSubCategory] = useState<string | null>(null);
@@ -815,6 +817,22 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
       setEditingWorkItemId(null); setEditingWorkItemSection(""); setEditWorkCaption(""); setEditWorkVideoUrl(""); setEditWorkSubCategory("");
     } catch { setError("Network error updating item."); }
     finally { setSavingWorkItemEdit(false); }
+  }
+
+  // Work Gallery — delete item
+  async function handleDeleteWorkItem(sectionSlug: string, itemId: string) {
+    setDeletingWorkItemId(itemId); setError("");
+    try {
+      const r = await fetch(`${API}/work-gallery/${sectionSlug}/${itemId}`, { method: "DELETE", credentials: "include" });
+      const data = await r.json();
+      if (!data.ok) { setError(data.error ?? "Failed to delete item."); return; }
+      setWorkGalleryItems((prev) => ({
+        ...prev,
+        [sectionSlug]: (prev[sectionSlug] ?? []).filter((it) => it.id !== itemId),
+      }));
+      setConfirmDeleteWorkItemId(null);
+    } catch { setError("Network error deleting item."); }
+    finally { setDeletingWorkItemId(null); }
   }
 
   // Save text settings
@@ -1457,12 +1475,33 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                               className="text-xs text-muted-foreground hover:text-primary transition-colors">{imgUrl ? "Replace image" : "Upload image"}</button>
                                           )}
                                         </div>
-                                        {/* Edit button */}
-                                        <button type="button" title="Edit caption / URL"
-                                          onClick={() => { setEditingWorkItemId(item.id); setEditingWorkItemSection(s.slug); setEditWorkCaption(item.caption); setEditWorkVideoUrl(item.videoUrl ?? ""); setEditWorkSubCategory(item.subCategorySlug ?? ""); }}
-                                          className="p-1 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100">
-                                          <Pencil className="w-3 h-3" />
-                                        </button>
+                                        {confirmDeleteWorkItemId === item.id ? (
+                                          <div className="flex items-center gap-1.5 shrink-0 text-xs">
+                                            <span className="text-destructive font-medium">Delete?</span>
+                                            <button type="button" disabled={deletingWorkItemId === item.id}
+                                              onClick={() => handleDeleteWorkItem(s.slug, item.id)}
+                                              className="text-destructive font-medium hover:underline">
+                                              {deletingWorkItemId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Yes"}
+                                            </button>
+                                            <button type="button" onClick={() => setConfirmDeleteWorkItemId(null)}
+                                              className="text-muted-foreground hover:text-foreground">No</button>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            {/* Edit button */}
+                                            <button type="button" title="Edit caption / URL"
+                                              onClick={() => { setEditingWorkItemId(item.id); setEditingWorkItemSection(s.slug); setEditWorkCaption(item.caption); setEditWorkVideoUrl(item.videoUrl ?? ""); setEditWorkSubCategory(item.subCategorySlug ?? ""); setConfirmDeleteWorkItemId(null); }}
+                                              className="p-1 rounded-md text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100">
+                                              <Pencil className="w-3 h-3" />
+                                            </button>
+                                            {/* Delete button */}
+                                            <button type="button" title="Delete"
+                                              onClick={() => setConfirmDeleteWorkItemId(item.id)}
+                                              className="p-1 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100">
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          </>
+                                        )}
                                       </div>
                                     );
                                   };
