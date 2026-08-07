@@ -319,10 +319,6 @@ export default function Home() {
 
       {/* ── HIGH-IMPACT SERVICES ─────────────────────────────────────────── */}
       <section className="py-28 bg-secondary text-secondary-foreground relative overflow-hidden">
-        <span className="absolute -right-8 top-1/2 -translate-y-1/2 text-[20rem] font-serif font-bold text-black/5 leading-none select-none hidden lg:block" aria-hidden="true">
-          {topServices.length}
-        </span>
-
         <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-16">
             <p className="text-sm font-bold uppercase tracking-widest opacity-70 mb-4">
