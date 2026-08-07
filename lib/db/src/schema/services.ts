@@ -5,6 +5,7 @@ export const servicesTable = pgTable("services", {
   title:       text("title").notNull(),
   description: text("description").notNull().default(""),
   topService:  boolean("top_service").notNull().default(false),
+  linkUrl:     text("link_url"),
   sortOrder:   integer("sort_order").notNull().default(0),
 });
 

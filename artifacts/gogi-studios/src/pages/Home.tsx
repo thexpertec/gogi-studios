@@ -4,14 +4,14 @@ const gogiBanner = "/api/static-images/gogi-banner.jpg";
 const nigarAward = "/api/static-images/nigar-event-6.jpg";
 const nigarSelfie = "/api/static-images/image_1785184592255.png";
 const nigarHome = "/api/static-images/nigar-event-2.jpg";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle, Star } from "lucide-react";
 import { Editable } from "@/components/ui/Editable";
 import { EditableImage } from "@/components/ui/EditableImage";
 import { useState, useEffect } from "react";
 
-interface DynamicService { id: string; title: string; description: string; topService: boolean; sortOrder: number; }
+interface DynamicService { id: string; title: string; description: string; topService: boolean; sortOrder: number; linkUrl?: string | null; }
 
 const FALLBACK_SERVICES: DynamicService[] = services.map((s, i) => ({
   id: s.id, title: s.title, description: s.description, topService: !!s.topRevenue, sortOrder: i,
@@ -35,6 +35,7 @@ const FALLBACK_TESTIMONIALS = [
 interface DynamicTestimonial { id: string; caption: string; imageUrl: string; }
 
 export default function Home() {
+  const [, navigate] = useLocation();
   const [dynamicTestimonials, setDynamicTestimonials] = useState<DynamicTestimonial[]>([]);
   const [dynamicServices, setDynamicServices] = useState<DynamicService[]>(FALLBACK_SERVICES);
   const [testimonialImages, setTestimonialImages] = useState<Record<string, string>>({});
@@ -341,7 +342,9 @@ export default function Home() {
             {topServices.map((service, i) => (
               <div
                 key={service.id}
-                className={`rounded-3xl p-8 flex flex-col gap-4 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl cursor-default
+                onClick={service.linkUrl ? () => navigate(service.linkUrl!) : undefined}
+                role={service.linkUrl ? "link" : undefined}
+                className={`rounded-3xl p-8 flex flex-col gap-4 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${service.linkUrl ? "cursor-pointer" : "cursor-default"}
                   ${i === 0
                     ? "bg-primary text-white md:col-span-2 lg:col-span-1"
                     : "bg-black/10 hover:bg-black/15"
@@ -362,7 +365,7 @@ export default function Home() {
                 <p className={`text-sm leading-relaxed flex-1 ${i === 0 ? "text-white/80" : "opacity-75"}`}>
                   <Editable id={`service-${service.id}-description`}>{service.description}</Editable>
                 </p>
-                <Link href="/hire" data-testid={`link-inquire-${service.id}`}>
+                <Link href="/hire" data-testid={`link-inquire-${service.id}`} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                   <span className={`inline-flex items-center gap-1 text-sm font-bold hover:gap-2 transition-all ${i === 0 ? "text-white" : ""}`}>
                     Inquire <ArrowRight className="w-3 h-3" />
                   </span>

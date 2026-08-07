@@ -57,7 +57,7 @@ const GALLERY_DOMAINS = [
 ] as const;
 
 interface CatalogItem { id: string; name: string; }
-interface AdminService { id: string; title: string; description: string; topService: boolean; sortOrder: number; }
+interface AdminService { id: string; title: string; description: string; topService: boolean; sortOrder: number; linkUrl?: string | null; }
 interface CatalogState { books: CatalogItem[]; merchandise: CatalogItem[]; projects: CatalogItem[]; }
 interface TestimonialItem { id: string; caption: string; }
 interface WorkGalleryItem { id: string; caption: string; subCategorySlug?: string | null; mediaType?: string; videoUrl?: string | null; }
@@ -388,6 +388,22 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
         setServicesList(updated); broadcastServices(updated);
       } else setError(data.error ?? "Failed to save service.");
     } catch { setError("Network error saving service."); }
+    finally { setSavingServiceId(null); }
+  }
+
+  async function saveServiceLink(id: string, linkUrl: string | null) {
+    const previous = servicesList;
+    const optimistic = servicesList.map((s) => s.id === id ? { ...s, linkUrl } : s);
+    setServicesList(optimistic);
+    setSavingServiceId(id); setError("");
+    try {
+      const r = await fetch(`${API}/services/${id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ linkUrl }) });
+      const data = await r.json();
+      if (data.ok) {
+        const updated = servicesList.map((s) => s.id === id ? data.item : s);
+        setServicesList(updated); broadcastServices(updated);
+      } else { setServicesList(previous); setError(data.error ?? "Failed to save link."); }
+    } catch { setServicesList(previous); setError("Network error saving link."); }
     finally { setSavingServiceId(null); }
   }
 
@@ -1055,6 +1071,18 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                           onChange={(e) => updateServiceLocal(svc.id, "description", e.target.value)}
                           onBlur={() => saveServiceField(svc.id, "description")}
                           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground shrink-0">Links to:</span>
+                          <select value={svc.linkUrl ?? ""}
+                            onChange={(e) => saveServiceLink(svc.id, e.target.value || null)}
+                            className="flex-1 h-8 rounded-lg border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
+                            <option value="">Nothing (not clickable)</option>
+                            {workSections.map((ws) => (
+                              <option key={ws.slug} value={`/work/${ws.slug}`}>Work → {ws.label}</option>
+                            ))}
+                            <option value="/hire">Hire Us page</option>
+                          </select>
+                        </div>
                       </div>
                     ))}
                   </div>

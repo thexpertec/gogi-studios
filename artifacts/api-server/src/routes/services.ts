@@ -58,6 +58,10 @@ router.patch("/services/:id", async (req, res) => {
     update.description = body.description;
   }
   if (body.topService !== undefined) update.topService = !!body.topService;
+  if (body.linkUrl !== undefined) {
+    if (body.linkUrl !== null && typeof body.linkUrl !== "string") { res.status(400).json({ ok: false, error: "linkUrl must be a string or null." }); return; }
+    update.linkUrl = typeof body.linkUrl === "string" && body.linkUrl.trim() ? body.linkUrl.trim() : null;
+  }
   if (!Object.keys(update).length) { res.status(400).json({ ok: false, error: "Nothing to update." }); return; }
 
   try {

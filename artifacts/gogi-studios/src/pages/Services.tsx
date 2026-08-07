@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowRight, Star } from "lucide-react";
 import DomainGalleryPage from "@/pages/DomainGalleryPage";
 import { services as fallbackServices } from "@/lib/data";
@@ -10,6 +10,7 @@ interface DynamicService {
   description: string;
   topService: boolean;
   sortOrder: number;
+  linkUrl?: string | null;
 }
 
 const FALLBACK: DynamicService[] = fallbackServices.map((s, i) => ({
@@ -17,6 +18,7 @@ const FALLBACK: DynamicService[] = fallbackServices.map((s, i) => ({
 }));
 
 export default function Services() {
+  const [, navigate] = useLocation();
   const [servicesList, setServicesList] = useState<DynamicService[]>(FALLBACK);
 
   useEffect(() => {
@@ -38,7 +40,9 @@ export default function Services() {
         {servicesList.map((service, i) => (
           <div
             key={service.id}
-            className={`rounded-3xl p-8 flex flex-col gap-4 border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl
+            onClick={service.linkUrl ? () => navigate(service.linkUrl!) : undefined}
+            role={service.linkUrl ? "link" : undefined}
+            className={`rounded-3xl p-8 flex flex-col gap-4 border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${service.linkUrl ? "cursor-pointer" : ""}
               ${service.topService
                 ? "bg-primary text-white border-primary"
                 : "bg-card border-border hover:border-primary/30"
@@ -59,7 +63,7 @@ export default function Services() {
             <p className={`text-sm leading-relaxed flex-1 ${service.topService ? "text-white/80" : "text-muted-foreground"}`}>
               {service.description}
             </p>
-            <Link href="/hire" data-testid={`link-inquire-${service.id}`}>
+            <Link href="/hire" data-testid={`link-inquire-${service.id}`} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
               <span className={`inline-flex items-center gap-1 text-sm font-bold hover:gap-2 transition-all cursor-pointer ${service.topService ? "text-white" : "text-primary"}`}>
                 Inquire <ArrowRight className="w-3 h-3" />
               </span>
