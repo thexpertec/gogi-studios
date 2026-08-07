@@ -194,6 +194,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
   // Work Gallery — sub-category management
   const [editingSubSlug, setEditingSubSlug] = useState<string | null>(null);
   const [editSubLabel, setEditSubLabel] = useState("");
+  const [editSubDesc, setEditSubDesc] = useState("");
   const [savingSubEdit, setSavingSubEdit] = useState(false);
   const [addingSubParent, setAddingSubParent] = useState<string | "root" | null>(null);
   const [newSubLabel, setNewSubLabel] = useState("");
@@ -698,13 +699,14 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     const activeSections = getActiveSections();
     const sec = activeSections.find((s) => s.slug === expandedSubSection);
     const current = sec?.subCategories?.find((s) => s.slug === subSlug);
-    if (editSubLabel.trim() === current?.label) { setEditingSubSlug(null); return; }
+    const newDesc = editSubDesc.trim();
+    if (editSubLabel.trim() === current?.label && newDesc === (current?.description ?? "")) { setEditingSubSlug(null); return; }
     setSavingSubEdit(true); setError("");
     try {
-      const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories/${subSlug}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: editSubLabel.trim() }) });
+      const r = await fetch(`${API}/work-sections/${expandedSubSection}/sub-categories/${subSlug}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: editSubLabel.trim(), description: newDesc || null }) });
       const data = await r.json();
       if (data.ok) {
-        setActiveSections(activeSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).map((sub) => sub.slug === subSlug ? { ...sub, label: editSubLabel.trim() } : sub) } : s));
+        setActiveSections(activeSections.map((s) => s.slug === expandedSubSection ? { ...s, subCategories: (s.subCategories ?? []).map((sub) => sub.slug === subSlug ? { ...sub, label: editSubLabel.trim(), description: newDesc || null } : sub) } : s));
         setEditingSubSlug(null);
       } else { setError(data.error ?? "Failed to rename sub-category."); }
     } catch { setError("Network error."); }
@@ -1633,18 +1635,24 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                             <div key={node.slug} style={{ marginLeft: `${depth * 14}px` }}
                                               className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border/60 bg-background text-xs">
                                               {editingSubSlug === node.slug ? (
-                                                <>
+                                                <div className="flex-1 flex flex-col gap-1">
                                                   <input value={editSubLabel} onChange={(e) => setEditSubLabel(e.target.value)} autoFocus
-                                                    className="flex-1 h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                                    className="w-full h-6 rounded border border-input bg-muted/40 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
                                                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleRenameSubCategory(node.slug); } if (e.key === "Escape") setEditingSubSlug(null); }} />
-                                                  <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
-                                                    className="h-6 px-2 text-xs rounded-full shrink-0">
-                                                    {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
-                                                  </Button>
-                                                  <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
-                                                    <XIcon className="w-3 h-3" />
-                                                  </button>
-                                                </>
+                                                  <textarea value={editSubDesc} onChange={(e) => setEditSubDesc(e.target.value)} rows={2}
+                                                    placeholder="Short description shown under the heading (optional)"
+                                                    className="w-full rounded border border-input bg-muted/40 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
+                                                    onKeyDown={(e) => { if (e.key === "Escape") setEditingSubSlug(null); }} />
+                                                  <div className="flex items-center gap-1 self-end">
+                                                    <Button type="button" size="sm" onClick={() => handleRenameSubCategory(node.slug)} disabled={savingSubEdit || !editSubLabel.trim()}
+                                                      className="h-6 px-2 text-xs rounded-full shrink-0">
+                                                      {savingSubEdit ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : "Save"}
+                                                    </Button>
+                                                    <button type="button" onClick={() => setEditingSubSlug(null)} className="p-0.5 text-muted-foreground hover:text-foreground shrink-0">
+                                                      <XIcon className="w-3 h-3" />
+                                                    </button>
+                                                  </div>
+                                                </div>
                                               ) : confirmDeleteSubSlug === node.slug ? (
                                                 <>
                                                   <span className="flex-1 text-destructive truncate">Delete with all children?</span>
@@ -1670,7 +1678,7 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                                     className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><ImageIcon className="w-3 h-3" /></button>
                                                   <button type="button" title="Add child sub-category" onClick={() => { setAddingSubParent(node.slug); setEditingSubSlug(null); setConfirmDeleteSubSlug(null); }}
                                                     className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
-                                                  <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
+                                                  <button type="button" title="Rename" onClick={() => { setEditingSubSlug(node.slug); setEditSubLabel(node.label); setEditSubDesc(node.description ?? ""); setAddingSubParent(null); setConfirmDeleteSubSlug(null); }}
                                                     className="p-0.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"><Pencil className="w-3 h-3" /></button>
                                                   <button type="button" title="Delete" onClick={() => {
                                                       const hasChildren = (s.subCategories ?? []).some((sc) => sc.parentSlug === node.slug);

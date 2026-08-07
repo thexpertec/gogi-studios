@@ -30,7 +30,7 @@ router.get("/work-sections", async (req, res) => {
       domain: s.domain ?? "work",
       subCategories: subCats
         .filter((sc) => sc.sectionSlug === s.slug)
-        .map((sc) => ({ slug: sc.slug, label: sc.label, parentSlug: sc.parentSlug ?? null })),
+        .map((sc) => ({ slug: sc.slug, label: sc.label, description: sc.description ?? null, parentSlug: sc.parentSlug ?? null })),
     }));
     res.json(result);
   } catch {
@@ -92,13 +92,18 @@ router.delete("/work-sections/:slug", async (req, res) => {
 router.patch("/work-sections/:slug/sub-categories/:subSlug", async (req, res) => {
   if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
   const { subSlug } = req.params;
-  const { label } = req.body as { label?: string };
-  if (!label?.trim()) { res.status(400).json({ ok: false, error: "label is required." }); return; }
+  const { label, description } = req.body as { label?: string; description?: string | null };
+  if (label !== undefined && !label?.trim()) { res.status(400).json({ ok: false, error: "label is required." }); return; }
+  if (label === undefined && description === undefined) { res.status(400).json({ ok: false, error: "Nothing to update." }); return; }
+
+  const patch: Record<string, unknown> = {};
+  if (label !== undefined) patch.label = label.trim();
+  if (description !== undefined) patch.description = description?.trim() ? description.trim() : null;
 
   try {
     const [updated] = await db
       .update(workSubCategoriesTable)
-      .set({ label: label.trim() })
+      .set(patch)
       .where(eq(workSubCategoriesTable.slug, subSlug))
       .returning();
     if (!updated) { res.status(404).json({ ok: false, error: "Sub-category not found." }); return; }

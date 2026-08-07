@@ -124,7 +124,7 @@ export default function DomainGalleryPage({
               const subCategories: SubCategory[] = section.subCategories ?? [];
               const treeOrder = buildTreeOrder(subCategories);
 
-              type Group = { key: string | null; heading: string | null; items: GalleryItem[] };
+              type Group = { key: string | null; heading: string | null; description?: string | null; items: GalleryItem[] };
               const groups: Group[] = [];
 
               if (treeOrder.length === 0) {
@@ -143,7 +143,7 @@ export default function DomainGalleryPage({
                 for (const { node, pathLabel } of treeOrder) {
                   const nodeItems = grouped.get(node.slug) ?? [];
                   if (nodeItems.length > 0) {
-                    groups.push({ key: node.slug, heading: pathLabel, items: nodeItems });
+                    groups.push({ key: node.slug, heading: pathLabel, description: node.description ?? null, items: nodeItems });
                   }
                 }
                 if (uncategorised.length > 0) {
@@ -162,9 +162,16 @@ export default function DomainGalleryPage({
                     {groups.map((group) => (
                       <div key={group.key ?? "__uncategorised"} id={group.key ?? undefined}>
                         {group.heading && (
-                          <h3 className="text-xl font-serif font-semibold text-foreground/80 mb-4 pl-1 border-l-2 border-primary/40 ml-0.5">
-                            {group.heading}
-                          </h3>
+                          <div className="mb-4 pl-1 border-l-2 border-primary/40 ml-0.5">
+                            <h3 className="text-xl font-serif font-semibold text-foreground/80">
+                              {group.heading}
+                            </h3>
+                            {group.description && (
+                              <p className="mt-1 text-muted-foreground text-sm leading-relaxed max-w-3xl">
+                                {group.description}
+                              </p>
+                            )}
+                          </div>
                         )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                           {group.items.map((item) => {

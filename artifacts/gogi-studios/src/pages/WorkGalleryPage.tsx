@@ -101,7 +101,7 @@ export default function WorkGalleryPage({ slug = "" }: Props) {
   const subCategories: SubCategory[] = section?.subCategories ?? [];
   const treeOrder = buildTreeOrder(subCategories);
 
-  type Group = { key: string | null; heading: string | null; items: GalleryItem[] };
+  type Group = { key: string | null; heading: string | null; description?: string | null; items: GalleryItem[] };
   const groups: Group[] = [];
 
   if (treeOrder.length === 0) {
@@ -120,7 +120,7 @@ export default function WorkGalleryPage({ slug = "" }: Props) {
     for (const { node, pathLabel } of treeOrder) {
       const nodeItems = grouped.get(node.slug) ?? [];
       if (nodeItems.length > 0) {
-        groups.push({ key: node.slug, heading: pathLabel, items: nodeItems });
+        groups.push({ key: node.slug, heading: pathLabel, description: node.description ?? null, items: nodeItems });
       }
     }
     if (uncategorised.length > 0) {
@@ -175,9 +175,16 @@ export default function WorkGalleryPage({ slug = "" }: Props) {
             {groups.map((group) => (
               <section key={group.key ?? "__uncategorised"} id={group.key ?? undefined}>
                 {group.heading && (
-                  <h2 className="text-2xl font-serif font-semibold text-foreground mb-6 pb-3 border-b border-border">
-                    {group.heading}
-                  </h2>
+                  <div className="mb-6 pb-3 border-b border-border">
+                    <h2 className="text-2xl font-serif font-semibold text-foreground">
+                      {group.heading}
+                    </h2>
+                    {group.description && (
+                      <p className="mt-2 text-muted-foreground text-base leading-relaxed max-w-3xl">
+                        {group.description}
+                      </p>
+                    )}
+                  </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                   {group.items.map((item) => {

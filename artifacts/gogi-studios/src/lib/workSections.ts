@@ -3,6 +3,7 @@
 export interface SubCategory {
   slug: string;
   label: string;
+  description?: string | null;
   parentSlug: string | null;
 }
 
