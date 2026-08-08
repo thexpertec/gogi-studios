@@ -105,7 +105,7 @@ export default function Home() {
           >
             <Editable id="home-hero-line1">Art That</Editable>
             <br />
-            <span className="text-primary italic relative inline-block">
+            <span className="text-[hsl(10,65%,32%)] italic relative inline-block">
               <Editable id="home-hero-line2">Moves</Editable>
               <svg aria-hidden="true" className="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" preserveAspectRatio="none">
                 <path d="M4,8 Q75,2 150,8 Q225,14 296,6" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round" className="text-secondary" />
