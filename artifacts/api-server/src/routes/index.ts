@@ -10,6 +10,7 @@ import workSectionsRouter from "./workSections";
 import staticImagesRouter from "./staticImages";
 import logoRouter from "./logo";
 import servicesRouter from "./services";
+import contentOverridesRouter from "./contentOverrides";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(testimonialsRouter);
 router.use(workGalleryRouter);
 router.use(workSectionsRouter);
 router.use(staticImagesRouter);
+router.use(contentOverridesRouter);
 
 export default router;
