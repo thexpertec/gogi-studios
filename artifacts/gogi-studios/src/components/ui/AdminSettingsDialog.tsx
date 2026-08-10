@@ -851,6 +851,42 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
     finally { setDeletingWorkItemId(null); }
   }
 
+  // Work Gallery — reorder item within its displayed group (same sub-category)
+  async function moveWorkItem(sectionSlug: string, itemId: string, dir: -1 | 1) {
+    const list = workGalleryItems[sectionSlug] ?? [];
+    const groupOf = (it: WorkGalleryItem) => it.subCategorySlug ?? "";
+    const item = list.find((it) => it.id === itemId);
+    if (!item) return;
+    const group = list.filter((it) => groupOf(it) === groupOf(item));
+    const gi = group.findIndex((it) => it.id === itemId);
+    const gj = gi + dir;
+    if (gj < 0 || gj >= group.length) return;
+    // Swap the two items' positions in the full section list
+    const i = list.findIndex((it) => it.id === group[gi].id);
+    const j = list.findIndex((it) => it.id === group[gj].id);
+    const reordered = [...list];
+    [reordered[i], reordered[j]] = [reordered[j], reordered[i]];
+    const previous = list;
+    setWorkGalleryItems((prev) => ({ ...prev, [sectionSlug]: reordered }));
+    setError("");
+    try {
+      const r = await fetch(`${API}/work-gallery/${sectionSlug}/reorder`, {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: reordered.map((it) => it.id) }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setWorkGalleryItems((prev) => ({ ...prev, [sectionSlug]: data.items ?? reordered }));
+      } else {
+        setWorkGalleryItems((prev) => ({ ...prev, [sectionSlug]: previous }));
+        setError(data.error ?? "Failed to reorder.");
+      }
+    } catch {
+      setWorkGalleryItems((prev) => ({ ...prev, [sectionSlug]: previous }));
+      setError("Network error reordering.");
+    }
+  }
+
   // Save text settings
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setError(""); setSuccess(false);
@@ -1516,6 +1552,25 @@ export function AdminSettingsDialog({ open, onOpenChange }: Props) {
                                           </div>
                                         ) : (
                                           <>
+                                            {/* Reorder buttons */}
+                                            {(() => {
+                                              const group = allItems.filter((it) => (it.subCategorySlug ?? "") === (item.subCategorySlug ?? ""));
+                                              const gi = group.findIndex((it) => it.id === item.id);
+                                              return (
+                                                <div className="flex flex-col shrink-0 opacity-0 group-hover:opacity-100">
+                                                  <button type="button" title="Move up" disabled={gi <= 0}
+                                                    onClick={() => moveWorkItem(s.slug, item.id, -1)}
+                                                    className="p-0.5 rounded text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-20 disabled:pointer-events-none">
+                                                    <ChevronUp className="w-3 h-3" />
+                                                  </button>
+                                                  <button type="button" title="Move down" disabled={gi < 0 || gi >= group.length - 1}
+                                                    onClick={() => moveWorkItem(s.slug, item.id, 1)}
+                                                    className="p-0.5 rounded text-muted-foreground/40 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-20 disabled:pointer-events-none">
+                                                    <ChevronDown className="w-3 h-3" />
+                                                  </button>
+                                                </div>
+                                              );
+                                            })()}
                                             {/* Edit button */}
                                             <button type="button" title="Edit caption / URL"
                                               onClick={() => { setEditingWorkItemId(item.id); setEditingWorkItemSection(s.slug); setEditWorkCaption(item.caption); setEditWorkVideoUrl(item.videoUrl ?? ""); setEditWorkSubCategory(item.subCategorySlug ?? ""); setConfirmDeleteWorkItemId(null); }}

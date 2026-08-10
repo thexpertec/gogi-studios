@@ -59,6 +59,38 @@ router.post("/work-gallery/:section", async (req, res) => {
   }
 });
 
+/** PUT /api/work-gallery/:section/reorder — admin; { ids: [...] } full ordered list for the section */
+router.put("/work-gallery/:section/reorder", async (req, res) => {
+  if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
+  const { section } = req.params;
+  if (!isValidSlug(section)) { res.status(400).json({ ok: false, error: "Invalid section slug." }); return; }
+  const { ids } = req.body as { ids?: unknown };
+  if (!Array.isArray(ids) || ids.some((i) => typeof i !== "string")) {
+    res.status(400).json({ ok: false, error: "ids must be an array of strings." }); return;
+  }
+  if (new Set(ids).size !== ids.length) {
+    res.status(400).json({ ok: false, error: "ids must be unique." }); return;
+  }
+  try {
+    const existing = await db.select({ id: workGalleryTable.id }).from(workGalleryTable)
+      .where(eq(workGalleryTable.sectionSlug, section));
+    const existingIds = new Set(existing.map((r) => r.id));
+    if (ids.length !== existingIds.size || ids.some((i) => !existingIds.has(i as string))) {
+      res.status(400).json({ ok: false, error: "ids must contain every item in the section exactly once." }); return;
+    }
+    for (let i = 0; i < ids.length; i++) {
+      await db.update(workGalleryTable).set({ sortOrder: i })
+        .where(and(eq(workGalleryTable.id, ids[i] as string), eq(workGalleryTable.sectionSlug, section)));
+    }
+    const items = await db.select().from(workGalleryTable)
+      .where(eq(workGalleryTable.sectionSlug, section))
+      .orderBy(asc(workGalleryTable.sortOrder));
+    res.json({ ok: true, items: items.map((i) => ({ ...i, imageUrl: `/api/content-images/work-${section}/${i.id}` })) });
+  } catch {
+    res.status(500).json({ ok: false, error: "Failed to reorder gallery items." });
+  }
+});
+
 /** PATCH /api/work-gallery/:section/:id */
 router.patch("/work-gallery/:section/:id", async (req, res) => {
   if (!isAdmin(req)) { res.status(401).json({ ok: false, error: "Unauthorized." }); return; }
