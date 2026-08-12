@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -41,5 +44,30 @@ app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 app.use(cookieParser(process.env.SESSION_SECRET));
 
 app.use("/api", router);
+
+// Production single-process mode: serve the built frontend from this server.
+// Enabled when STATIC_DIR is set (or defaults to the sibling frontend build in
+// production). Not used in Replit development, where Vite serves the frontend.
+const staticDir =
+  process.env.STATIC_DIR ??
+  (process.env.NODE_ENV === "production"
+    ? path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "../../gogi-studios/dist/public",
+      )
+    : undefined);
+
+if (staticDir && fs.existsSync(staticDir)) {
+  app.use(express.static(staticDir, { maxAge: "1h", index: "index.html" }));
+  // SPA fallback: any non-API GET that wasn't matched serves index.html
+  app.use((req, res, next) => {
+    if (req.method === "GET" && !req.path.startsWith("/api")) {
+      res.sendFile(path.join(staticDir, "index.html"));
+    } else {
+      next();
+    }
+  });
+  logger.info({ staticDir }, "Serving static frontend");
+}
 
 export default app;
