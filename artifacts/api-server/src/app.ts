@@ -48,16 +48,24 @@ app.use("/api", router);
 // Production single-process mode: serve the built frontend from this server.
 // Enabled when STATIC_DIR is set (or defaults to the sibling frontend build in
 // production). Not used in Replit development, where Vite serves the frontend.
-const staticDir =
-  process.env.STATIC_DIR ??
-  (process.env.NODE_ENV === "production"
-    ? path.resolve(
-        path.dirname(fileURLToPath(import.meta.url)),
-        "../../gogi-studios/dist/public",
-      )
-    : undefined);
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+const staticDirCandidates = [
+  process.env.STATIC_DIR,
+  ...(process.env.NODE_ENV === "production"
+    ? [
+        // Flat prebuilt bundle: public/ next to the server file
+        path.resolve(serverDir, "public"),
+        // Monorepo layout: sibling frontend build
+        path.resolve(serverDir, "../../gogi-studios/dist/public"),
+      ]
+    : []),
+];
+const staticDir = staticDirCandidates
+  .filter((dir): dir is string => Boolean(dir))
+  .map((dir) => path.resolve(dir))
+  .find((dir) => fs.existsSync(dir));
 
-if (staticDir && fs.existsSync(staticDir)) {
+if (staticDir) {
   app.use(express.static(staticDir, { maxAge: "1h", index: "index.html" }));
   // SPA fallback: any non-API GET that wasn't matched serves index.html
   app.use((req, res, next) => {

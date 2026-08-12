@@ -13,4 +13,11 @@ id = "E6djImiMsxvl3h8Q8lP1y"
 uri = "file://exports/gogi-database-export.sql"
 type = "unspecified"
 title = "PostgreSQL database export"
-description = "Full schema and data export — import with psql on your new database."
+description = "Full schema and data — import into your PostgreSQL database (e.g. Supabase SQL editor or psql)."
+
+[[outputs]]
+id = "AXFifYEUChxabEGOnfwiG"
+uri = "file://exports/gogi-studios-prebuilt.zip"
+type = "unspecified"
+title = "Pre-built bundle for Hostinger Cloud (ZIP)"
+description = "Already built — no pnpm, no workspace, no build step. Upload, run npm install, start with node index.mjs. Verified working end-to-end."
