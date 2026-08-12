@@ -5,8 +5,8 @@ generated = []
 id = "4e7ikV9B-llnAiq4ECpol"
 uri = "file://exports/gogi-studios-hostinger.zip"
 type = "unspecified"
-title = "Hostinger deployment package (ZIP)"
-description = "Full project: frontend, backend, shared code, configs, lock file, README, and .env.example — no secrets, node_modules, or build folders."
+title = "Updated Hostinger package (ZIP)"
+description = "Now includes @supabase/supabase-js, pnpm build-script approval for esbuild, and a freshly regenerated lock file. Production build verified. No secrets, node_modules, or build folders."
 
 [[outputs]]
 id = "E6djImiMsxvl3h8Q8lP1y"
